@@ -1,0 +1,76 @@
+# ============================================================
+# STM32CubeMX + Keil MDK + FreeRTOS/LVGL project .gitignore
+# Place this file in the project root as: .gitignore
+# ============================================================
+
+# ---------- Keil MDK / uVision user-local files ----------
+*.uvgui.*
+*.uvguix.*
+*.uvopt
+*.uvoptx
+*.uvgui
+*.uvguix
+
+# Keep the real Keil project file
+!*.uvproj
+!*.uvprojx
+
+# ---------- Keil MDK build output directories ----------
+# This project currently outputs build files to MDK-ARM/test/
+/MDK-ARM/test/
+
+# Common Keil output folder names in other configurations
+/MDK-ARM/Objects/
+/MDK-ARM/Listings/
+/MDK-ARM/Debug/
+/MDK-ARM/Release/
+/MDK-ARM/DebugConfig/
+
+# ---------- Keil / ARM compiler generated files ----------
+*.o
+*.d
+*.crf
+*.lst
+*.map
+*.lnp
+*.axf
+*.elf
+*.hex
+*.bin
+*.htm
+*.dep
+*.iex
+*.fed
+*.build_log.htm
+*.bak
+
+# ---------- STM32CubeMX / STM32CubeIDE temporary files ----------
+*.ioc.bak
+.mxproject.bak
+.settings/
+.metadata/
+Debug/
+Release/
+
+# Keep CubeMX configuration and CubeMX project metadata
+!*.ioc
+!.mxproject
+
+# ---------- VS Code / editor local files ----------
+.vscode/
+.history/
+*.code-workspace
+
+# ---------- OS junk files ----------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---------- Temporary / log files ----------
+*.log
+*.tmp
+*.temp
+*.orig
+*.rej
+*.swp
+*~
