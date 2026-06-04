@@ -339,7 +339,7 @@
               <MiscControls></MiscControls>
               <Define>USE_HAL_DRIVER,STM32F411xE</Define>
               <Undefine></Undefine>
-              <IncludePath>../Core/Inc;../USER/HwAccess;../USER/Task/GUI_Task;../USER/Task/HardWare_init_task;../USER/Task/Key_Task;../USER/PageManagement;../USER/GUI_page;../USER/FONTS;../USER/FreeRTOS_Debug;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../BSP;../BSP/LCD;../Middlewares/Third_Party/FreeRTOS/Source/include;../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2;../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F;../Middlewares/Third_Party/lvgl_minimal_runtime;../Middlewares/Third_Party/lvgl_minimal_runtime/lvgl;../Middlewares/Third_Party/lvgl_minimal_runtime/lvgl/include;../Middlewares/Third_Party/lvgl_minimal_runtime/port;..\Middlewares\Third_Party\lvgl_minimal_runtime\lvgl\include\lvgl\draw</IncludePath>
+              <IncludePath>../Core/Inc;../USER/HwAccess;../USER/Task/GUI_Task;../USER/Task/HardWare_init_task;../USER/Task/Key_Task;../USER/PageManagement;../USER/GUI_page;../USER/FONTS;../USER/FreeRTOS_Debug;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../BSP/LCD;../Middlewares/Third_Party/FreeRTOS/Source/include;../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2;../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F;../Middlewares/Third_Party/lvgl_minimal_runtime;../Middlewares/Third_Party/lvgl_minimal_runtime/lvgl;../Middlewares/Third_Party/lvgl_minimal_runtime/lvgl/include;../Middlewares/Third_Party/lvgl_minimal_runtime/port;..\Middlewares\Third_Party\lvgl_minimal_runtime\lvgl\include\lvgl\draw;..\BSP\Key</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -389,14 +389,19 @@
               <FilePath>..\BSP\LCD\st7789v.c</FilePath>
             </File>
             <File>
-              <FileName>I2CVirtual.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\BSP\I2CVirtual.c</FilePath>
-            </File>
-            <File>
               <FileName>CST816T.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\BSP\LCD\CST816T.c</FilePath>
+            </File>
+            <File>
+              <FileName>bsp_key.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\BSP\Key\bsp_key.c</FilePath>
+            </File>
+            <File>
+              <FileName>I2CVirtual.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\BSP\LCD\I2CVirtual.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -1410,11 +1415,6 @@
               <FileName>hwaccess.c</FileName>
               <FileType>1</FileType>
               <FilePath>../USER/HwAccess/hwaccess.c</FilePath>
-            </File>
-            <File>
-              <FileName>board_hw.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../USER/HwAccess/board_hw.c</FilePath>
             </File>
             <File>
               <FileName>LVGL_Task.c</FileName>

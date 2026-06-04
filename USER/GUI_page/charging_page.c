@@ -2,13 +2,13 @@
  * @file charging_page.c
  * @brief 充电检测页面实现。
  *
- * 该文件属于 Application/UI App 层。页面通过 BoardHW 读取已经缓存好的电量，
+ * 该文件属于 Application/UI App 层。页面通过 HwAccess 读取已经缓存好的电量，
  * 不直接访问 PA2、ADC、GPIO 或 HAL，因此后续迁移 STM32F411 时仍保持 UI 可移植。
  */
 
 #include "charging_page.h"
 
-#include "board_hw.h"
+#include "hwaccess.h"
 
 #include <string.h>
 
@@ -45,11 +45,11 @@ static void charging_page_key_cb(lv_event_t * e)
 
 static uint8_t charging_page_read_percent(void)
 {
-    if(BoardHW.battery.GetPercent == NULL) {
+    if(HwAccess.battery.get_percent == NULL) {
         return 0U;
     }
 
-    return BoardHW.battery.GetPercent();
+    return HwAccess.battery.get_percent();
 }
 
 static void charging_page_update(charging_page_t * page)

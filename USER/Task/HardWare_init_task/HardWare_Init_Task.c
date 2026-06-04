@@ -1,6 +1,5 @@
 #include "HardWare_Init_Task.h"
 
-#include "CST816T.h"
 #include "cmsis_os2.h"
 #include "hwaccess.h"
 
@@ -18,7 +17,6 @@ void HardWare_Init_Task(void *argument)
     HardwareInit_DebugStage = 1U;
     HwAccess.lcd.init();
     HardwareInit_DebugStage = 2U;
-    (void)CST816T_Init();
     HardwareInit_DebugStage = 3U;
     HardwareInit_DebugStage = 4U;
 

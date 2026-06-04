@@ -13,8 +13,7 @@ extern "C" {
 /**
  * @brief 按键扫描任务入口函数。
  *
- * KEY1: PA5，按下为低电平，用作返回键。
- * KEY2: PA4，按下为高电平，用作息屏/亮屏键。
+ * 该任务把逻辑按键转换为 KEY_TASK_EVENT_xxx 事件，具体 GPIO 连接由 HwAccess 层封装。
  *
  * @param argument FreeRTOS 任务参数，当前未使用。
  */

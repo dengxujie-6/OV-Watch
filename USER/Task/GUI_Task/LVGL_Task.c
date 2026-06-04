@@ -1,12 +1,12 @@
 #include "LVGL_Task.h"
 
 #include "cmsis_os2.h"
+#include "hwaccess.h"
 #include "Key_task.h"
 #include "lvgl.h"
 #include "main.h"
 #include "menu_page.h"
 #include "page_manager.h"
-#include "st7789v.h"
 
 #define LVGL_TASK_DELAY_MS 5U
 
@@ -60,12 +60,12 @@ static void LVGL_Task_HandleKeyEvents(void)
 
     if((key_events & KEY_TASK_EVENT_SCREEN) != 0UL) {
         if(lvgl_task_screen_on != 0U) {
-            st7789_SetBacklight(0U);
-            st7789_DisplayOff();
+            HwAccess.lcd.set_backlight(0U);
+            HwAccess.lcd.display_off();
             lvgl_task_screen_on = 0U;
         } else {
-            st7789_DisplayOn();
-            st7789_SetBacklight(100U);
+            HwAccess.lcd.display_on();
+            HwAccess.lcd.set_backlight(100U);
             lvgl_task_screen_on = 1U;
         }
     }

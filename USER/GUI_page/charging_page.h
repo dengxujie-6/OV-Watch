@@ -3,7 +3,7 @@
  * @brief 充电检测页面接口。
  *
  * 该页面属于 UI App 层，只负责显示充电状态和电量。
- * 充电 GPIO 和电池 ADC 数据由 BSP/HWAccess 层通过 BoardHW 提供。
+ * 充电 GPIO 和电池 ADC 数据由 BSP/HWAccess 层通过 HwAccess 提供。
  */
 
 #ifndef __CHARGING_PAGE_H

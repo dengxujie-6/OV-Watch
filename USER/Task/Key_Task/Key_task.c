@@ -2,32 +2,21 @@
 
 #include "FreeRTOS.h"
 #include "cmsis_os2.h"
-#include "main.h"
+#include "hwaccess.h"
 #include "task.h"
 
 #define KEY_TASK_SCAN_PERIOD_MS       5U
 #define KEY_TASK_DEBOUNCE_TICKS       4U
 
-#define KEY1_GPIO_PORT                GPIOA
-#define KEY1_GPIO_PIN                 GPIO_PIN_5
-#define KEY1_PRESSED_LEVEL            GPIO_PIN_RESET
-
-#define KEY2_GPIO_PORT                GPIOA
-#define KEY2_GPIO_PIN                 GPIO_PIN_4
-#define KEY2_PRESSED_LEVEL            GPIO_PIN_SET
-
 typedef struct {
-    GPIO_TypeDef *port;
-    uint16_t pin;
-    GPIO_PinState pressed_level;
-    GPIO_PinState stable_level;
-    GPIO_PinState last_sample;
+    HwAccess_KeyId_t id;
+    uint8_t stable_pressed;
+    uint8_t last_sample;
     uint8_t debounce_count;
 } KeyScan_t;
 
 static volatile uint32_t key_task_events;
 
-static void Key_Task_GpioInit(void);
 static uint8_t Key_Task_ScanPressedEdge(KeyScan_t *key);
 static void Key_Task_PostEvent(uint32_t event);
 
@@ -53,8 +42,7 @@ uint32_t Key_Task_FetchEvents(void)
 /**
  * @brief 按键扫描任务入口函数。
  *
- * KEY1 连接 PA5，按下接 GND，因此使用上拉输入并检测低电平。
- * KEY2 连接 PA4，按下接 VCC，因此使用下拉输入并检测高电平。
+ * 任务层只负责去抖和事件转换；GPIO 端口、引脚、上下拉和有效电平由 HwAccess 隔离。
  *
  * @param argument FreeRTOS 任务参数，当前未使用。
  */
@@ -65,20 +53,16 @@ void Key_Task(void *argument)
 
     (void)argument;
 
-    Key_Task_GpioInit();
+    HwAccess.key.init();
 
-    key1.port = KEY1_GPIO_PORT;
-    key1.pin = KEY1_GPIO_PIN;
-    key1.pressed_level = KEY1_PRESSED_LEVEL;
-    key1.stable_level = HAL_GPIO_ReadPin(KEY1_GPIO_PORT, KEY1_GPIO_PIN);
-    key1.last_sample = key1.stable_level;
+    key1.id = HWACCESS_KEY_BACK;
+    key1.stable_pressed = HwAccess.key.is_pressed(HWACCESS_KEY_BACK);
+    key1.last_sample = key1.stable_pressed;
     key1.debounce_count = 0U;
 
-    key2.port = KEY2_GPIO_PORT;
-    key2.pin = KEY2_GPIO_PIN;
-    key2.pressed_level = KEY2_PRESSED_LEVEL;
-    key2.stable_level = HAL_GPIO_ReadPin(KEY2_GPIO_PORT, KEY2_GPIO_PIN);
-    key2.last_sample = key2.stable_level;
+    key2.id = HWACCESS_KEY_SCREEN;
+    key2.stable_pressed = HwAccess.key.is_pressed(HWACCESS_KEY_SCREEN);
+    key2.last_sample = key2.stable_pressed;
     key2.debounce_count = 0U;
 
     for(;;) {
@@ -95,28 +79,6 @@ void Key_Task(void *argument)
 }
 
 /**
- * @brief 初始化 KEY1/KEY2 GPIO 输入模式。
- */
-static void Key_Task_GpioInit(void)
-{
-    GPIO_InitTypeDef GPIO_InitStruct = {0};
-
-    __HAL_RCC_GPIOA_CLK_ENABLE();
-
-    GPIO_InitStruct.Pin = KEY1_GPIO_PIN;
-    GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-    GPIO_InitStruct.Pull = GPIO_PULLUP;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-    HAL_GPIO_Init(KEY1_GPIO_PORT, &GPIO_InitStruct);
-
-    GPIO_InitStruct.Pin = KEY2_GPIO_PIN;
-    GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-    GPIO_InitStruct.Pull = GPIO_PULLDOWN;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-    HAL_GPIO_Init(KEY2_GPIO_PORT, &GPIO_InitStruct);
-}
-
-/**
  * @brief 扫描单个按键，并在稳定按下边沿返回 1。
  *
  * @param key 按键扫描状态结构体指针。
@@ -124,7 +86,7 @@ static void Key_Task_GpioInit(void)
  */
 static uint8_t Key_Task_ScanPressedEdge(KeyScan_t *key)
 {
-    GPIO_PinState sample = HAL_GPIO_ReadPin(key->port, key->pin);
+    uint8_t sample = HwAccess.key.is_pressed(key->id);
 
     if(sample != key->last_sample) {
         key->last_sample = sample;
@@ -137,13 +99,13 @@ static uint8_t Key_Task_ScanPressedEdge(KeyScan_t *key)
         return 0U;
     }
 
-    if(sample == key->stable_level) {
+    if(sample == key->stable_pressed) {
         return 0U;
     }
 
-    key->stable_level = sample;
+    key->stable_pressed = sample;
 
-    return (sample == key->pressed_level) ? 1U : 0U;
+    return (sample != 0U) ? 1U : 0U;
 }
 
 /**
