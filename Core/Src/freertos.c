@@ -27,6 +27,7 @@
 /* USER CODE BEGIN Includes */
 #include "HardWare_Init_Task.h"
 #include "LVGL_Task.h"
+#include "freertos_debug.h"
 
 /* USER CODE END Includes */
 
@@ -57,8 +58,33 @@ const osThreadAttr_t defaultTask_attributes = {
   .priority = (osPriority_t) osPriorityNormal,
 };
 
+/* Definitions for hardWareInitTask */
+osThreadId_t hardWareInitTaskHandle;
+const osThreadAttr_t hardWareInitTask_attributes = {
+  .name = "hwInitTask",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityAboveNormal,
+};
+
+/* Definitions for lvglTask */
+osThreadId_t lvglTaskHandle;
+const osThreadAttr_t lvglTask_attributes = {
+  .name = "lvglTask",
+  .stack_size = 1024 * 6,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+
+/* Definitions for keyTask */
+osThreadId_t keyTaskHandle;
+const osThreadAttr_t keyTask_attributes = {
+  .name = "keyTask",
+  .stack_size = 256 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
+void Key_Task(void *argument);
 
 /* USER CODE END FunctionPrototypes */
 
@@ -98,8 +124,20 @@ void MX_FREERTOS_Init(void) {
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
-  HardWare_Init_Task_Create();//硬件初始化任务
-  LVGL_Task_Create();//LVGL运行 任务
+  /* creation of hardWareInitTask */
+  hardWareInitTaskHandle = osThreadNew(HardWare_Init_Task, NULL, &hardWareInitTask_attributes);
+
+  /* creation of lvglTask */
+  lvglTaskHandle = osThreadNew(LVGL_Task, NULL, &lvglTask_attributes);
+
+  /* creation of keyTask */
+  keyTaskHandle = osThreadNew(Key_Task, NULL, &keyTask_attributes);
+
+  (void)FreeRTOS_Debug_RegisterTask((TaskHandle_t)defaultTaskHandle, defaultTask_attributes.name);
+  (void)FreeRTOS_Debug_RegisterTask((TaskHandle_t)hardWareInitTaskHandle, hardWareInitTask_attributes.name);
+  (void)FreeRTOS_Debug_RegisterTask((TaskHandle_t)lvglTaskHandle, lvglTask_attributes.name);
+  (void)FreeRTOS_Debug_RegisterTask((TaskHandle_t)keyTaskHandle, keyTask_attributes.name);
+  (void)FreeRTOS_Debug_CreateMonitorTask();
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */
@@ -132,4 +170,5 @@ void StartDefaultTask(void *argument)
 /* USER CODE BEGIN Application */
 
 /* USER CODE END Application */
+
 

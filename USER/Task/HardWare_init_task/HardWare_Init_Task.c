@@ -1,37 +1,26 @@
 #include "HardWare_Init_Task.h"
 
+#include "CST816T.h"
 #include "cmsis_os2.h"
 #include "hwaccess.h"
 
-static osThreadId_t hardWareInitTaskHandle;
-
-static const osThreadAttr_t hardWareInitTaskAttributes = {
-    .name = "hwInitTask",
-    .stack_size = 512 * 4,
-    .priority = (osPriority_t)osPriorityAboveNormal,
-};
-
-static void HardWare_Init_Task(void *argument);
+volatile uint32_t HardwareInit_DebugStage;
 
 /**
- * @brief 创建硬件初始化任务。
- */
-void HardWare_Init_Task_Create(void)
-{
-    hardWareInitTaskHandle = osThreadNew(HardWare_Init_Task, NULL, &hardWareInitTaskAttributes);
-}
-
-/**
- * @brief 初始化板级硬件模块。
+ * @brief Initialize board hardware.
  *
- * 这个任务只访问硬件接口，不创建 GUI 任务，也不调用 LVGL API。
+ * 该任务只负责硬件启动顺序，任务创建由 freertos.c 统一完成。
  */
-static void HardWare_Init_Task(void *argument)
+void HardWare_Init_Task(void *argument)
 {
     (void)argument;
 
-    // 通过全局硬件接口访问 LCD，不直接调用 BSP 驱动。
+    HardwareInit_DebugStage = 1U;
     HwAccess.lcd.init();
+    HardwareInit_DebugStage = 2U;
+    (void)CST816T_Init();
+    HardwareInit_DebugStage = 3U;
+    HardwareInit_DebugStage = 4U;
 
     osThreadExit();
 }

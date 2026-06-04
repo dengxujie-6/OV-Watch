@@ -43,6 +43,10 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN PV */
+volatile uint32_t HardFault_DebugCFSR;
+volatile uint32_t HardFault_DebugHFSR;
+volatile uint32_t HardFault_DebugMMFAR;
+volatile uint32_t HardFault_DebugBFAR;
 
 /* USER CODE END PV */
 
@@ -87,6 +91,10 @@ void NMI_Handler(void)
 void HardFault_Handler(void)
 {
   /* USER CODE BEGIN HardFault_IRQn 0 */
+  HardFault_DebugCFSR = SCB->CFSR;
+  HardFault_DebugHFSR = SCB->HFSR;
+  HardFault_DebugMMFAR = SCB->MMFAR;
+  HardFault_DebugBFAR = SCB->BFAR;
 
   /* USER CODE END HardFault_IRQn 0 */
   while (1)

@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-void HardWare_Init_Task_Create(void);
+void HardWare_Init_Task(void *argument);
 
 #ifdef __cplusplus
 }

@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-void LVGL_Task_Create(void);
+void LVGL_Task(void *argument);
 
 #ifdef __cplusplus
 }

@@ -339,7 +339,7 @@
               <MiscControls></MiscControls>
               <Define>USE_HAL_DRIVER,STM32F411xE</Define>
               <Undefine></Undefine>
-              <IncludePath>../Core/Inc;../USER/HwAccess;../USER/Task/GUI_Task;../USER/Task/HardWare_init_task;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../BSP/LCD;../Middlewares/Third_Party/FreeRTOS/Source/include;../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2;../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F;../Middlewares/Third_Party/lvgl_minimal_runtime;../Middlewares/Third_Party/lvgl_minimal_runtime/lvgl;../Middlewares/Third_Party/lvgl_minimal_runtime/lvgl/include;../Middlewares/Third_Party/lvgl_minimal_runtime/port;..\Middlewares\Third_Party\lvgl_minimal_runtime\lvgl\include\lvgl\draw</IncludePath>
+              <IncludePath>../Core/Inc;../USER/HwAccess;../USER/Task/GUI_Task;../USER/Task/HardWare_init_task;../USER/Task/Key_Task;../USER/PageManagement;../USER/GUI_page;../USER/FONTS;../USER/FreeRTOS_Debug;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../BSP;../BSP/LCD;../Middlewares/Third_Party/FreeRTOS/Source/include;../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2;../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F;../Middlewares/Third_Party/lvgl_minimal_runtime;../Middlewares/Third_Party/lvgl_minimal_runtime/lvgl;../Middlewares/Third_Party/lvgl_minimal_runtime/lvgl/include;../Middlewares/Third_Party/lvgl_minimal_runtime/port;..\Middlewares\Third_Party\lvgl_minimal_runtime\lvgl\include\lvgl\draw</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -387,6 +387,16 @@
               <FileName>st7789v.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\BSP\LCD\st7789v.c</FilePath>
+            </File>
+            <File>
+              <FileName>I2CVirtual.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\BSP\I2CVirtual.c</FilePath>
+            </File>
+            <File>
+              <FileName>CST816T.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\BSP\LCD\CST816T.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -1402,6 +1412,11 @@
               <FilePath>../USER/HwAccess/hwaccess.c</FilePath>
             </File>
             <File>
+              <FileName>board_hw.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../USER/HwAccess/board_hw.c</FilePath>
+            </File>
+            <File>
               <FileName>LVGL_Task.c</FileName>
               <FileType>1</FileType>
               <FilePath>../USER/Task/GUI_Task/LVGL_Task.c</FilePath>
@@ -1410,6 +1425,61 @@
               <FileName>HardWare_Init_Task.c</FileName>
               <FileType>1</FileType>
               <FilePath>../USER/Task/HardWare_init_task/HardWare_Init_Task.c</FilePath>
+            </File>
+            <File>
+              <FileName>Key_task.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../USER/Task/Key_Task/Key_task.c</FilePath>
+            </File>
+            <File>
+              <FileName>page_manager.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../USER/PageManagement/page_manager.c</FilePath>
+            </File>
+            <File>
+              <FileName>my_font_source_han_20.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../USER/FONTS/my_font_source_han_20.c</FilePath>
+            </File>
+            <File>
+              <FileName>menu_page.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../USER/GUI_page/menu_page.c</FilePath>
+            </File>
+            <File>
+              <FileName>title_page.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../USER/GUI_page/title_page.c</FilePath>
+            </File>
+            <File>
+              <FileName>calendar_page.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../USER/GUI_page/calendar_page.c</FilePath>
+            </File>
+            <File>
+              <FileName>calculator_page.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../USER/GUI_page/calculator_page.c</FilePath>
+            </File>
+            <File>
+              <FileName>stopwatch_page.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../USER/GUI_page/stopwatch_page.c</FilePath>
+            </File>
+            <File>
+              <FileName>charging_page.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../USER/GUI_page/charging_page.c</FilePath>
+            </File>
+            <File>
+              <FileName>freertos_debug.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../USER/FreeRTOS_Debug/freertos_debug.c</FilePath>
+            </File>
+            <File>
+              <FileName>lv_port_indev.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Middlewares/Third_Party/lvgl_minimal_runtime/port/lv_port_indev.c</FilePath>
             </File>
           </Files>
         </Group>
