@@ -17,6 +17,8 @@ extern const lv_font_t my_font_source_han_20;
 #define CHARGING_PAGE_REFRESH_MS 1000U
 #define CHARGING_RING_SIZE       198
 #define CHARGING_RING_WIDTH      5
+#define CHARGING_BATTERY_MIN_MV  2750U
+#define CHARGING_BATTERY_MAX_MV  4200U
 
 /**
  * @brief 充电检测页面对象。
@@ -45,19 +47,38 @@ static void charging_page_key_cb(lv_event_t * e)
 
 static uint8_t charging_page_read_percent(void)
 {
-    if(HwAccess.battery.get_percent == NULL) {
+    uint16_t voltage_mv;
+
+    if(HwAccess.power.get_battery_voltage_mv == NULL) {
         return 0U;
     }
 
-    return HwAccess.battery.get_percent();
+    voltage_mv = HwAccess.power.get_battery_voltage_mv();
+    if(voltage_mv <= CHARGING_BATTERY_MIN_MV) {
+        return 0U;
+    }
+
+    if(voltage_mv >= CHARGING_BATTERY_MAX_MV) {
+        return 100U;
+    }
+
+    // 页面只做显示换算，GPIO/ADC 细节仍由 HwAccess/Power/BSP 分层封装。
+    return (uint8_t)(((uint32_t)(voltage_mv - CHARGING_BATTERY_MIN_MV) * 100U) /
+                     (CHARGING_BATTERY_MAX_MV - CHARGING_BATTERY_MIN_MV));
 }
 
 static void charging_page_update(charging_page_t * page)
 {
     uint8_t percent;
+    uint8_t is_charging = 0U;
 
-    if((page == NULL) || (page->arc == NULL) || (page->percent_label == NULL)) {
+    if((page == NULL) || (page->arc == NULL) || (page->percent_label == NULL) ||
+       (page->status_label == NULL)) {
         return;
+    }
+
+    if(HwAccess.power.is_charging != NULL) {
+        is_charging = HwAccess.power.is_charging();
     }
 
     percent = charging_page_read_percent();
@@ -71,6 +92,8 @@ static void charging_page_update(charging_page_t * page)
         page->last_percent = percent;
         page->display_ready = 1U;
     }
+
+    lv_label_set_text(page->status_label, (is_charging != 0U) ? "正在充电 " : "未充电 ");
 }
 
 static void charging_page_refresh_timer_cb(lv_timer_t * timer)

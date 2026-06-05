@@ -9,6 +9,7 @@
 
 #include <string.h>
 
+#include "animation_page.h"
 #include "calendar_page.h"
 #include "calculator_page.h"
 #include "stopwatch_page.h"
@@ -31,7 +32,7 @@ struct menu_page {
 
 extern const lv_font_t my_font_source_han_20;
 
-#define MENU_ITEM_COUNT 12
+#define MENU_ITEM_COUNT 13
 
 typedef struct {
     const char * title;
@@ -127,6 +128,9 @@ static void menu_item_event_cb(lv_event_t * e)
         }
         else if(strcmp(title, "秒表") == 0) {
             (void)PageManager_Push(&StopwatchPage);
+        }
+        else if(strcmp(title, "动画") == 0) {
+            (void)PageManager_Push(&AnimationPage);
         }
         else {
             title_page_set_title(title);
@@ -271,6 +275,7 @@ menu_page_t * menu_page_create(void)
         { "日历", LV_SYMBOL_LIST, 0xff6b6b },
         { "计算器", LV_SYMBOL_SETTINGS, 0xffa94d },
         { "秒表", LV_SYMBOL_REFRESH, 0xb197fc },
+        { "动画", LV_SYMBOL_PLAY, 0x4dabf7 },
         { "卡包", LV_SYMBOL_DIRECTORY, 0xffd43b },
         { "运动", LV_SYMBOL_UP, 0x51cf66 },
         { "心率", LV_SYMBOL_TINT, 0xff8787 },
