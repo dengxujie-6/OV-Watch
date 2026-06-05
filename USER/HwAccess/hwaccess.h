@@ -41,14 +41,16 @@ typedef struct Keystruct_typedef
 } obj_Key;
 
 /**
- * @brief 电池状态访问接口。
+ * @brief 电源与充电状态访问接口。
  *
- * 该接口只返回已经缓存或抽象后的电池状态，不在 UI 刷新路径里直接采样 ADC。
+ * 任务层通过该接口保持 POWER_EN、读取 CHARG 和电池电压，不直接访问 GPIO/ADC。
  */
-typedef struct Batterystruct_typedef
+typedef struct Powerstruct_typedef
 {
-    uint8_t (*get_percent)(void);  /**< 获取电池电量百分比，范围 0~100。 */
-} obj_Battery;
+    void (*open)(void);  /**< 打开并保持系统电源。 */
+    uint8_t (*is_charging)(void);  /**< 读取充电检测状态，1 表示高电平有效。 */
+    uint16_t (*get_battery_voltage_mv)(void);  /**< 读取电池电压检测值，单位 mV。 */
+} obj_Power;
 
 /**
  * @brief 顶层硬件访问对象。
@@ -59,7 +61,7 @@ typedef struct hwaccess_typedef
 {
     obj_Lcd lcd;  /**< LCD 操作表。 */
     obj_Key key;  /**< 按键操作表。 */
-    obj_Battery battery;  /**< 电池状态访问接口。 */
+    obj_Power power;  /**< 电源与充电状态访问接口。 */
 } obj_HwAccess;
 
 /**

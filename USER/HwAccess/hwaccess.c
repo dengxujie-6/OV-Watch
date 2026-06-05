@@ -1,12 +1,12 @@
 #include "hwaccess.h"
 
 #include "bsp_key.h"
+#include "bsp_power.h"
 #include "CST816T.h"
 #include "st7789v.h"
 
 static void HwAccess_Lcd_Init(void);
 static uint8_t HwAccess_Key_IsPressed(HwAccess_KeyId_t key);
-static uint8_t HwAccess_Battery_GetPercentDefault(void);
 
 /**
  * @brief 初始化屏幕相关硬件。
@@ -42,18 +42,6 @@ static uint8_t HwAccess_Key_IsPressed(HwAccess_KeyId_t key)
 }
 
 /**
- * @brief 获取默认电池电量百分比。
- *
- * 当前工程还没有电池采样服务，这里只提供页面编译和显示用的占位数据。
- *
- * @return 电池电量百分比，范围 0~100。
- */
-static uint8_t HwAccess_Battery_GetPercentDefault(void)
-{
-    return 0U;
-}
-
-/**
  * @brief 全局硬件访问对象。
  *
  * 该表把任务层可用的硬件接口绑定到具体 BSP 实现，避免任务直接依赖底层模块。
@@ -70,7 +58,9 @@ obj_HwAccess HwAccess = {
         .init = BSP_Key_Init,
         .is_pressed = HwAccess_Key_IsPressed,
     },
-    .battery = {
-        .get_percent = HwAccess_Battery_GetPercentDefault,
+    .power = {
+        .open = BSP_Power_Open,
+        .is_charging = BSP_Power_IsCharging,
+        .get_battery_voltage_mv = BSP_Power_ReadBatteryVoltageMv,
     },
 };

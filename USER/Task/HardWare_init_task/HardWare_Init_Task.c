@@ -15,8 +15,9 @@ void HardWare_Init_Task(void *argument)
     (void)argument;
 
     HardwareInit_DebugStage = 1U;
-    HwAccess.lcd.init();
+    HwAccess.power.open();
     HardwareInit_DebugStage = 2U;
+    HwAccess.lcd.init();
     HardwareInit_DebugStage = 3U;
     HardwareInit_DebugStage = 4U;
 
