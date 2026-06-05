@@ -1,6 +1,7 @@
 #include "LVGL_Task.h"
 
 #include "cmsis_os2.h"
+#include "debug_overlay.h"
 #include "hwaccess.h"
 #include "Key_task.h"
 #include "lvgl.h"
@@ -35,6 +36,7 @@ void LVGL_Task(void *argument)
     // 初始化显示驱动和输入设备驱动。
     lv_port_disp_init();
     lv_port_indev_init();
+    DebugOverlay_Init();
 
     // 进入菜单首页，页面栈由 PageManager 负责维护。
     (void)PageManager_Push(&MenuPage);

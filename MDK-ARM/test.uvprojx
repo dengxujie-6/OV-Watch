@@ -339,7 +339,7 @@
               <MiscControls></MiscControls>
               <Define>USE_HAL_DRIVER,STM32F411xE</Define>
               <Undefine></Undefine>
-              <IncludePath>../Core/Inc;../USER/HwAccess;../USER/Task/GUI_Task;../USER/Task/HardWare_init_task;../USER/Task/Key_Task;../USER/PageManagement;../USER/GUI_page;../USER/FONTS;../USER/FreeRTOS_Debug;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../BSP/LCD;../Middlewares/Third_Party/FreeRTOS/Source/include;../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2;../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F;../Middlewares/Third_Party/lvgl_minimal_runtime;../Middlewares/Third_Party/lvgl_minimal_runtime/lvgl;../Middlewares/Third_Party/lvgl_minimal_runtime/lvgl/include;../Middlewares/Third_Party/lvgl_minimal_runtime/port;..\Middlewares\Third_Party\lvgl_minimal_runtime\lvgl\include\lvgl\draw;..\BSP\Key</IncludePath>
+              <IncludePath>../Core/Inc;../USER/HwAccess;../USER/Task/GUI_Task;../USER/Task/HardWare_init_task;../USER/Task/Key_Task;../USER/PageManagement;../USER/GUI_page;../USER/GUI_page/Menu;../USER/GUI_page/Common;../USER/GUI_page/Tools;../USER/GUI_page/Status;../USER/GUI_page/Diagnostics;../USER/FONTS;../USER/FreeRTOS_Debug;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../BSP/LCD;../Middlewares/Third_Party/FreeRTOS/Source/include;../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2;../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F;../Middlewares/Third_Party/lvgl_minimal_runtime;../Middlewares/Third_Party/lvgl_minimal_runtime/lvgl;../Middlewares/Third_Party/lvgl_minimal_runtime/lvgl/include;../Middlewares/Third_Party/lvgl_minimal_runtime/port;..\Middlewares\Third_Party\lvgl_minimal_runtime\lvgl\include\lvgl\draw;..\BSP\Key;..\BSP\Power</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -397,6 +397,11 @@
               <FileName>bsp_key.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\BSP\Key\bsp_key.c</FilePath>
+            </File>
+            <File>
+              <FileName>bsp_power.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\BSP\Power\bsp_power.c</FilePath>
             </File>
             <File>
               <FileName>I2CVirtual.c</FileName>
@@ -599,6 +604,16 @@
               <FileName>stm32f4xx_hal_gpio.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_gpio.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32f4xx_hal_adc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_adc.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32f4xx_hal_adc_ex.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_adc_ex.c</FilePath>
             </File>
             <File>
               <FileName>stm32f4xx_hal_dma_ex.c</FileName>
@@ -1444,32 +1459,42 @@
             <File>
               <FileName>menu_page.c</FileName>
               <FileType>1</FileType>
-              <FilePath>../USER/GUI_page/menu_page.c</FilePath>
+              <FilePath>../USER/GUI_page/Menu/menu_page.c</FilePath>
             </File>
             <File>
               <FileName>title_page.c</FileName>
               <FileType>1</FileType>
-              <FilePath>../USER/GUI_page/title_page.c</FilePath>
+              <FilePath>../USER/GUI_page/Common/title_page.c</FilePath>
             </File>
             <File>
               <FileName>calendar_page.c</FileName>
               <FileType>1</FileType>
-              <FilePath>../USER/GUI_page/calendar_page.c</FilePath>
+              <FilePath>../USER/GUI_page/Tools/calendar_page.c</FilePath>
             </File>
             <File>
               <FileName>calculator_page.c</FileName>
               <FileType>1</FileType>
-              <FilePath>../USER/GUI_page/calculator_page.c</FilePath>
+              <FilePath>../USER/GUI_page/Tools/calculator_page.c</FilePath>
             </File>
             <File>
               <FileName>stopwatch_page.c</FileName>
               <FileType>1</FileType>
-              <FilePath>../USER/GUI_page/stopwatch_page.c</FilePath>
+              <FilePath>../USER/GUI_page/Tools/stopwatch_page.c</FilePath>
+            </File>
+            <File>
+              <FileName>animation_page.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../USER/GUI_page/Tools/animation_page.c</FilePath>
             </File>
             <File>
               <FileName>charging_page.c</FileName>
               <FileType>1</FileType>
-              <FilePath>../USER/GUI_page/charging_page.c</FilePath>
+              <FilePath>../USER/GUI_page/Status/charging_page.c</FilePath>
+            </File>
+            <File>
+              <FileName>debug_overlay.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../USER/GUI_page/Diagnostics/debug_overlay.c</FilePath>
             </File>
             <File>
               <FileName>freertos_debug.c</FileName>
