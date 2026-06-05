@@ -14,6 +14,8 @@ void HardWare_Init_Task(void *argument)
 {
     (void)argument;
 
+    HwAccess.watchdog.init();
+
     HardwareInit_DebugStage = 1U;
     HwAccess.power.open();
     HardwareInit_DebugStage = 2U;

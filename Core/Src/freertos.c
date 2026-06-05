@@ -27,6 +27,7 @@
 /* USER CODE BEGIN Includes */
 #include "HardWare_Init_Task.h"
 #include "LVGL_Task.h"
+#include "Watchdog_Task.h"
 #include "freertos_debug.h"
 
 /* USER CODE END Includes */
@@ -48,6 +49,13 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN Variables */
+/* Definitions for watchdogTask */
+osThreadId_t watchdogTaskHandle;
+const osThreadAttr_t watchdogTask_attributes = {
+  .name = "watchdogTask",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
 
 /* USER CODE END Variables */
 /* Definitions for defaultTask */
@@ -133,10 +141,14 @@ void MX_FREERTOS_Init(void) {
   /* creation of keyTask */
   keyTaskHandle = osThreadNew(Key_Task, NULL, &keyTask_attributes);
 
+  /* creation of watchdogTask */
+  watchdogTaskHandle = osThreadNew(Watchdog_Task, NULL, &watchdogTask_attributes);
+
   (void)FreeRTOS_Debug_RegisterTask((TaskHandle_t)defaultTaskHandle, defaultTask_attributes.name);
   (void)FreeRTOS_Debug_RegisterTask((TaskHandle_t)hardWareInitTaskHandle, hardWareInitTask_attributes.name);
   (void)FreeRTOS_Debug_RegisterTask((TaskHandle_t)lvglTaskHandle, lvglTask_attributes.name);
   (void)FreeRTOS_Debug_RegisterTask((TaskHandle_t)keyTaskHandle, keyTask_attributes.name);
+  (void)FreeRTOS_Debug_RegisterTask((TaskHandle_t)watchdogTaskHandle, watchdogTask_attributes.name);
   (void)FreeRTOS_Debug_CreateMonitorTask();
   /* USER CODE END RTOS_THREADS */
 

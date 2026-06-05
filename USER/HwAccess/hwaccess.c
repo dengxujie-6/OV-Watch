@@ -1,5 +1,6 @@
 #include "hwaccess.h"
 
+#include "bsp_ext_watchdog.h"
 #include "bsp_key.h"
 #include "bsp_power.h"
 #include "CST816T.h"
@@ -62,5 +63,11 @@ obj_HwAccess HwAccess = {
         .open = BSP_Power_Open,
         .is_charging = BSP_Power_IsCharging,
         .get_battery_voltage_mv = BSP_Power_ReadBatteryVoltageMv,
+    },
+    .watchdog = {
+        .init = BSP_ExtWatchdog_Init,
+        .enable = BSP_ExtWatchdog_Enable,
+        .disable = BSP_ExtWatchdog_Disable,
+        .feed = BSP_ExtWatchdog_Feed,
     },
 };

@@ -74,3 +74,7 @@ desktop.ini
 *.rej
 *.swp
 *~
+
+# ---------- CMake / Ninja out-of-source builds ----------
+/build*/
+/out*/

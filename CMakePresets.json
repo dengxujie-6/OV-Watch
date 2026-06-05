@@ -1,0 +1,33 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 22,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "gcc-debug",
+      "displayName": "GCC Debug",
+      "description": "Configure the STM32F411 firmware with Arm GNU Toolchain and MinGW Makefiles.",
+      "generator": "MinGW Makefiles",
+      "binaryDir": "${sourceDir}/build/gcc",
+      "environment": {
+        "ARM_NONE_EABI_PATH": "E:/arm-gnu-toolchain-15.2.rel1-mingw-w64-i686-arm-none-eabi"
+      },
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/cmake/arm-none-eabi-gcc.cmake",
+        "CMAKE_MAKE_PROGRAM": "E:/CodeBlocks/MinGW/bin/mingw32-make.exe"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "gcc-debug",
+      "displayName": "GCC Debug",
+      "configurePreset": "gcc-debug",
+      "jobs": 0
+    }
+  ]
+}

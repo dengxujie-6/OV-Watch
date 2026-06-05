@@ -339,7 +339,7 @@
               <MiscControls></MiscControls>
               <Define>USE_HAL_DRIVER,STM32F411xE</Define>
               <Undefine></Undefine>
-              <IncludePath>../Core/Inc;../USER/HwAccess;../USER/Task/GUI_Task;../USER/Task/HardWare_init_task;../USER/Task/Key_Task;../USER/PageManagement;../USER/GUI_page;../USER/GUI_page/Menu;../USER/GUI_page/Common;../USER/GUI_page/Tools;../USER/GUI_page/Status;../USER/GUI_page/Diagnostics;../USER/FONTS;../USER/FreeRTOS_Debug;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../BSP/LCD;../Middlewares/Third_Party/FreeRTOS/Source/include;../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2;../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F;../Middlewares/Third_Party/lvgl_minimal_runtime;../Middlewares/Third_Party/lvgl_minimal_runtime/lvgl;../Middlewares/Third_Party/lvgl_minimal_runtime/lvgl/include;../Middlewares/Third_Party/lvgl_minimal_runtime/port;..\Middlewares\Third_Party\lvgl_minimal_runtime\lvgl\include\lvgl\draw;..\BSP\Key;..\BSP\Power</IncludePath>
+              <IncludePath>../Core/Inc;../USER/HwAccess;../USER/Task/GUI_Task;../USER/Task/HardWare_init_task;../USER/Task/Key_Task;../USER/Task/Watchdog_Task;../USER/PageManagement;../USER/GUI_page;../USER/GUI_page/Menu;../USER/GUI_page/Common;../USER/GUI_page/Tools;../USER/GUI_page/Status;../USER/GUI_page/Diagnostics;../USER/FONTS;../USER/FreeRTOS_Debug;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../BSP/LCD;../Middlewares/Third_Party/FreeRTOS/Source/include;../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2;../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F;../Middlewares/Third_Party/lvgl_minimal_runtime;../Middlewares/Third_Party/lvgl_minimal_runtime/lvgl;../Middlewares/Third_Party/lvgl_minimal_runtime/lvgl/include;../Middlewares/Third_Party/lvgl_minimal_runtime/port;..\Middlewares\Third_Party\lvgl_minimal_runtime\lvgl\include\lvgl\draw;..\BSP\Key;..\BSP\Power;..\BSP\IIC;..\BSP\Watchdog</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -404,9 +404,19 @@
               <FilePath>..\BSP\Power\bsp_power.c</FilePath>
             </File>
             <File>
+              <FileName>bsp_ext_watchdog.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\BSP\Watchdog\bsp_ext_watchdog.c</FilePath>
+            </File>
+            <File>
               <FileName>I2CVirtual.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\BSP\LCD\I2CVirtual.c</FilePath>
+            </File>
+            <File>
+              <FileName>bsp_iic.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\BSP\IIC\bsp_iic.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -1445,6 +1455,11 @@
               <FileName>Key_task.c</FileName>
               <FileType>1</FileType>
               <FilePath>../USER/Task/Key_Task/Key_task.c</FilePath>
+            </File>
+            <File>
+              <FileName>Watchdog_Task.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../USER/Task/Watchdog_Task/Watchdog_Task.c</FilePath>
             </File>
             <File>
               <FileName>page_manager.c</FileName>

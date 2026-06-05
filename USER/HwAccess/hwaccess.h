@@ -53,6 +53,19 @@ typedef struct Powerstruct_typedef
 } obj_Power;
 
 /**
+ * @brief 外部硬件看门狗操作表。
+ *
+ * PB1 Dog_EN 低电平打开、高电平关闭；PB2 WDI 通过周期翻转完成喂狗。
+ */
+typedef struct Watchdogstruct_typedef
+{
+    void (*init)(void);  /**< 初始化外部看门狗 GPIO，默认保持关闭。 */
+    void (*enable)(void);  /**< 打开外部硬件看门狗。 */
+    void (*disable)(void);  /**< 关闭外部硬件看门狗。 */
+    void (*feed)(void);  /**< 翻转 WDI 完成一次喂狗。 */
+} obj_Watchdog;
+
+/**
  * @brief 顶层硬件访问对象。
  *
  * 后续新增硬件模块时，应以模块操作表的形式加入这里，任务层和 UI 层统一通过该对象访问硬件。
@@ -62,6 +75,7 @@ typedef struct hwaccess_typedef
     obj_Lcd lcd;  /**< LCD 操作表。 */
     obj_Key key;  /**< 按键操作表。 */
     obj_Power power;  /**< 电源与充电状态访问接口。 */
+    obj_Watchdog watchdog;  /**< 外部硬件看门狗操作表。 */
 } obj_HwAccess;
 
 /**
