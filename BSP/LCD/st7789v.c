@@ -1,11 +1,11 @@
 ﻿/**
  * @file st7789v.c
  * @author Renato Freitas (freitas-renato@outlook.com)
- * @brief ST7789V LCD 椹卞姩鍑芥暟瀹炵幇
+ * @brief ST7789V LCD 驱动函数实现
  * @version 0.1
  * @date 2021-03-24
  * 
- * @note 鏈枃浠舵部鐢?STMicroelectronics Nucleo/Discovery 鏉垮崱涓殑 LCD_IO 鎺ュ彛椋庢牸
+ * @note 本文件沿用 STMicroelectronics Nucleo/Discovery 板卡中的 LCD_IO 接口风格
  * @see 
  * 
  * @copyright Copyright (c) 2021
@@ -18,21 +18,21 @@
 #include "stm32f4xx_hal_gpio.h"
 
 /*************************************************************************************************/
-/*                      杩欓儴鍒咷PIO锛孲PI锛孴IM澶栬鐢盋ubMX閰嶇疆濂斤紝鎴栬€呭湪鍏朵粬鍦版柟鎵嬪姩鍒濆鍖?             */
+/*                      GPIO、SPI、TIM 外设由 CubeMX 或其他初始化流程完成配置                      */
 /*************************************************************************************************/
-/* LCD 鎺у埗寮曡剼銆傝繖浜?GPIO 寮曡剼鍦?Core/Src/gpio.c 涓畬鎴愬垵濮嬪寲銆?*/
+/* LCD 控制引脚。这些 GPIO 引脚在 Core/Src/gpio.c 中完成初始化。*/
 #define LCD_DC_GPIO_PORT        GPIOB
-#define LCD_DC_GPIO_PIN         GPIO_PIN_9     // PB9锛氬懡浠?鏁版嵁閫夋嫨 LCD_DC
+#define LCD_DC_GPIO_PIN         GPIO_PIN_9     // PB9：命令/数据选择 LCD_DC
 #define LCD_CS_GPIO_PORT        GPIOB
-#define LCD_CS_GPIO_PIN         GPIO_PIN_8     // PB8锛氱墖閫?LCD_CS
+#define LCD_CS_GPIO_PIN         GPIO_PIN_8     // PB8：片选 LCD_CS
 #define LCD_RST_GPIO_PORT       GPIOB
-#define LCD_RST_GPIO_PIN        GPIO_PIN_7     // PB7锛氱‖浠跺浣?LCD_RST
+#define LCD_RST_GPIO_PIN        GPIO_PIN_7     // PB7：硬件复位 LCD_RST
 
-/* PB0 琚厤缃负 TIM3_CH3 PWM 杈撳嚭锛岀敤浜?LCD 鑳屽厜銆?*/
+/* PB0 被配置为 TIM3_CH3 PWM 输出，用于 LCD 背光。*/
 #define LCD_BLK_TIM             htim3
 #define LCD_BLK_TIM_CHANNEL     TIM_CHANNEL_3
 
-/* PB3/PB5 鍦?Core/Src/spi.c 涓厤缃负 SPI1_SCK/SPI1_MOSI銆?*/
+/* PB3/PB5 在 Core/Src/spi.c 中配置为 SPI1_SCK/SPI1_MOSI。*/
 #define LCD_SPI                 hspi1
 #define LCD_SPI_TIMEOUT_MS      500U
 
@@ -45,20 +45,20 @@
 static volatile uint8_t lcd_dma_notify_enabled;
 
 /*************************************************************************************************/
-/*                      杩欓儴鍒咷PIO锛孲PI锛孴IM澶栬鐢盋ubMX閰嶇疆濂斤紝鎴栬€呭湪鍏朵粬鍦版柟鎵嬪姩鍒濆鍖?             */
+/*                      GPIO、SPI、TIM 外设由 CubeMX 或其他初始化流程完成配置                      */
 /*************************************************************************************************/
 
 
 /**
- * @brief ST7789 鍛戒护缁撴瀯浣撱€? */
+ * @brief ST7789 命令结构体。 */
 typedef struct {
-    uint8_t command;  // 鍛戒护 ID
-    uint16_t waitMs;  // 鍛戒护鍙戦€佸悗鐨勫欢鏃舵椂闂达紝鍗曚綅 ms
-    uint8_t dataSize; // 鍛戒护鍙傛暟鏁版嵁闀垮害
+    uint8_t command;  // 命令 ID
+    uint16_t waitMs;  // 命令发送后的延时时间，单位 ms
+    uint8_t dataSize; // 命令参数数据长度
     uint8_t *data;
 } st7789_command_t;
 
-/* ST7789 鍛戒护/鏁版嵁鍐欏叆娴佺▼浣跨敤鐨勬枃浠跺唴绉佹湁鍑芥暟銆?*/
+/* ST7789 命令/数据写入流程使用的文件内私有函数。*/
 static void st7789_RunCommand(const st7789_command_t *command);
 static void st7789_RunCommands(const st7789_command_t *sequence);
 static void CS_IDLE(void);
@@ -82,66 +82,67 @@ static void LCD_IO_WriteDataByte(uint8_t data);
 
 
 /**
- * @brief ST7789 鍒濆鍖栨祦绋嬶紝閰嶇疆鏄剧ず鎺ュ彛鍜屾樉绀哄弬鏁般€? * 
+ * @brief ST7789 初始化流程，配置显示接口和显示参数。
+ *
  */
 void st7789_Init(void) {
     LCD_IO_Init();
 
-    //* CASET 璁剧疆鏄剧ず瀹藉害鑼冨洿
+    //* CASET 设置显示宽度范围
     const uint8_t caset[4] = {
         0x00, 0x00,
         (ST7789_LCD_WIDTH - 1) >> 8, (ST7789_LCD_WIDTH - 1) & 0xFF
     };
 
-    //* RASET 璁剧疆鏄剧ず楂樺害鑼冨洿
+    //* RASET 设置显示高度范围
     const uint8_t raset[4] = {
         0x00, 0x00,
         (ST7789_LCD_HEIGHT - 1) >> 8, (ST7789_LCD_HEIGHT - 1) & 0xFF
     };
 
     const st7789_command_t initSequence[] = {
-        // 杩涘叆鐫＄湢
-        {ST7789_CMD_SLPIN, 10, 0, NULL},                    // 杩涘叆鐫＄湢
-        {ST7789_CMD_SWRESET, 200, 0, NULL},                 // 杞欢澶嶄綅
-        {ST7789_CMD_SLPOUT, 120, 0, NULL},                  // 閫€鍑虹潯鐪?
+        // 进入睡眠
+        {ST7789_CMD_SLPIN, 10, 0, NULL},                    // 进入睡眠
+        {ST7789_CMD_SWRESET, 200, 0, NULL},                 // 软件复位
+        {ST7789_CMD_SLPOUT, 120, 0, NULL},                  // 退出睡眠
         {ST7789_CMD_CMD2EN, 100, 0, NULL},
 
-        {ST7789_CMD_MADCTL, 0, 1, ( uint8_t *)"\x00"},      // 椤?鍒楀湴鍧€椤哄簭
-        {ST7789_CMD_COLMOD, 0, 1, ( uint8_t *)"\x55"},      // 16 浣?RGB 妯″紡
+        {ST7789_CMD_MADCTL, 0, 1, ( uint8_t *)"\x00"},      // 行列地址顺序
+        {ST7789_CMD_COLMOD, 0, 1, ( uint8_t *)"\x55"},      // 16 位 RGB 模式
 
-        // //* 娣诲姞 VSYNC銆丠SYNC 閰嶇疆
+        // //* 添加 VSYNC、HSYNC 配置
         // {ST7789_CMD_RGBCTRL, 0, 3, (uint8_t *)"\x42\x08\x3c"},
 
-        {ST7789_CMD_INVON, 0, 0, NULL},                     // 鎵撳紑鏄剧ず鍙嶈壊
-        {ST7789_CMD_CASET, 0, 4, ( uint8_t *)caset},        // 璁剧疆瀹藉害鑼冨洿
-        {ST7789_CMD_RASET, 0, 4, ( uint8_t *)raset},        // 璁剧疆楂樺害鑼冨洿
+        {ST7789_CMD_INVON, 0, 0, NULL},                     // 打开显示反色
+        {ST7789_CMD_CASET, 0, 4, ( uint8_t *)caset},        // 设置宽度范围
+        {ST7789_CMD_RASET, 0, 4, ( uint8_t *)raset},        // 设置高度范围
 
-        // Porch 鍙傛暟璁剧疆
+        // Porch 参数设置
         {ST7789_CMD_PORCTRL, 0, 5, ( uint8_t *)"\x0c\x0c\x00\x33\x33"},
-        // 璁剧疆 VGH 涓?12.54V锛孷GL 涓?-9.6V
+        // 设置 VGH 为 12.54V，VGL 为 -9.6V
         {ST7789_CMD_GCTRL, 0, 1, ( uint8_t *)"\x35"},
-        // 璁剧疆 VCOM 涓?1.475V
+        // 设置 VCOM 为 1.475V
         {ST7789_CMD_VCOMS, 0, 1, ( uint8_t *)"\x1f"},
-        // 浣胯兘 VDV/VRH 鎺у埗
+        // 使能 VDV/VRH 控制
         {ST7789_CMD_VDVVRHEN, 0, 1, ( uint8_t *)"\x01"},
 
-        // LCM 鎺у埗
+        // LCM 控制
         {ST7789_CMD_LCMCTRL, 0, 1, ( uint8_t *)"\x2c"},
-        // VAP(GVDD) 鐢靛帇璁＄畻锛?.45 + (VCOM + VCOM 鍋忕Щ + VDV)
+        // VAP(GVDD) 电压计算：4.45 + (VCOM + VCOM 偏移 + VDV)
         {ST7789_CMD_VRHS, 0, 1, ( uint8_t *)"\x12"},
-        // 璁剧疆 VDV 涓?0V
+        // 设置 VDV 为 0V
         {ST7789_CMD_VDVSET, 0, 1, ( uint8_t *)"\x20"},
-        // 璁剧疆 AVDD 涓?6.8V锛孉VCL 涓?-4.8V锛孷DDS 涓?2.3V
+        // 设置 AVDD 为 6.8V，AVCL 为 -4.8V，VDDS 为 2.3V
         {ST7789_CMD_PWCTRL1, 0, 2, ( uint8_t *)"\xa4\xa1"},
-        // 璁剧疆鍒锋柊鐜囦负 60 fps
+        // 设置刷新率为 60 fps
         {ST7789_CMD_FRCTR2, 0, 1, ( uint8_t *)"\x0f"},
-        // 璁剧疆 Gamma 涓?2.2
+        // 设置 Gamma 为 2.2
         {ST7789_CMD_GAMSET, 0, 1, (uint8_t *)"\x01"},
-        // Gamma 鏇茬嚎
+        // Gamma 曲线
         {ST7789_CMD_PVGAMCTRL, 0, 14, ( uint8_t *)"\xd0\x08\x11\x08\x0c\x15\x39\x33\x50\x36\x13\x14\x29\x2d"},
         {ST7789_CMD_NVGAMCTRL, 0, 14, ( uint8_t *)"\xd0\x08\x10\x08\x06\x06\x39\x44\x51\x0b\x16\x14\x2f\x31"},
         
-        {ST7789_CMDLIST_END, 0, 0, NULL}                   // 鍛戒护搴忓垪缁撴潫
+        {ST7789_CMDLIST_END, 0, 0, NULL}                   // 命令序列结束
     };
 
     st7789_RunCommands(initSequence);
@@ -150,12 +151,12 @@ void st7789_Init(void) {
     st7789_Clear(ST7789_BLACK);
 
     const st7789_command_t initSequence2[] = {
-        {ST7789_CMD_RGBCTRL, 0, 3, (uint8_t *)"\x42\x08\x3c"},  // 璁剧疆 HSYNC = 0x3C锛孷SYNC = 0x80
-        {ST7789_CMD_RAMCTRL, 0, 2, (uint8_t*)"\x11\xc2"},       // RAMCTRL 閫夋嫨 RGB 鎺ュ彛
-        {ST7789_CMD_DISPON, 100, 0, NULL},                      // 鎵撳紑鏄剧ず
-        {ST7789_CMD_SLPOUT, 100, 0, NULL},                      // 閫€鍑虹潯鐪?        
-        {ST7789_CMD_RAMWR, 50, 0, NULL},                        // 寮€濮嬪啓 GRAM
-        {ST7789_CMDLIST_END, 0, 0, NULL},                       // 鍛戒护搴忓垪缁撴潫
+        {ST7789_CMD_RGBCTRL, 0, 3, (uint8_t *)"\x42\x08\x3c"},  // 设置 HSYNC = 0x3C，VSYNC = 0x80
+        {ST7789_CMD_RAMCTRL, 0, 2, (uint8_t*)"\x11\xc2"},       // RAMCTRL 选择 RGB 接口
+        {ST7789_CMD_DISPON, 100, 0, NULL},                      // 打开显示
+        {ST7789_CMD_SLPOUT, 100, 0, NULL},                      // 退出睡眠
+        {ST7789_CMD_RAMWR, 50, 0, NULL},                        // 开始写 GRAM
+        {ST7789_CMDLIST_END, 0, 0, NULL},                       // 命令序列结束
     };
 
     st7789_RunCommands(initSequence2);
@@ -166,8 +167,9 @@ void st7789_Reset(void) {
 }
 
 /**
- * @brief 鍙嶅垵濮嬪寲 LCD 鏄剧ず妯″潡銆? *
- * 鍏抽棴鏄剧ず杈撳嚭骞跺皢鑳屽厜浜害璁剧疆涓?0銆? */
+ * @brief 反初始化 LCD 显示模块。
+ *
+ * 关闭显示输出并将背光亮度设置为 0。 */
 void st7789_DeInit(void)
 {
     st7789_DisplayOff();
@@ -176,22 +178,25 @@ void st7789_DeInit(void)
 
 
 /**
- * @brief 鎵撳紑鏄剧ず銆? * 
+ * @brief 打开显示。
+ *
  */
 void st7789_DisplayOn(void) {
     LCD_IO_WriteCommand(ST7789_CMD_DISPON);
 }
 
 /**
- * @brief 鍏抽棴鏄剧ず銆? * 
+ * @brief 关闭显示。
+ *
  */
 void st7789_DisplayOff(void) {
     LCD_IO_WriteCommand(ST7789_CMD_DISPOFF);
 }
 
 /**
- * @brief 璁剧疆 LCD 鑳屽厜浜害銆? *
- * @param brightness 鑳屽厜浜害鐧惧垎姣旓紝鑼冨洿 0~100銆? */
+ * @brief 设置 LCD 背光亮度。
+ *
+ * @param brightness 背光亮度百分比，范围 0~100。 */
 void st7789_SetBacklight(uint8_t brightness)
 {
     uint32_t autoReload;
@@ -214,8 +219,9 @@ void st7789_SetBacklight(uint8_t brightness)
 }
 
 /**
- * @brief 閫氳繃 SPI 鎵ц涓€鏉?ST7789V 鍛戒护銆? * 
- * @param command 鍛戒护缁撴瀯浣撴寚閽? */
+ * @brief 通过 SPI 执行一条 ST7789V 命令。
+ *
+ * @param command 命令结构体指针。 */
 static void st7789_RunCommand(const st7789_command_t *command) {
     LCD_IO_WriteCommand(command->command);
 
@@ -227,8 +233,9 @@ static void st7789_RunCommand(const st7789_command_t *command) {
 }
 
 /**
- * @brief 鎵ц棰勫畾涔夌殑鍛戒护搴忓垪銆? * 
- * @param sequence 鍛戒护搴忓垪鏁扮粍鎸囬拡
+ * @brief 执行预定义的命令序列。
+ *
+ * @param sequence 命令序列数组指针
  */
 static void st7789_RunCommands(const st7789_command_t *sequence) {
     while (sequence->command != ST7789_CMDLIST_END) {
@@ -238,11 +245,12 @@ static void st7789_RunCommands(const st7789_command_t *sequence) {
 }
 
 /**
- * @brief 璁剧疆鏄剧ず RAM 鍐欏儚绱犵獥鍙ｃ€? * 
- * @param xStart  姘村钩鏂瑰悜璧峰鍧愭爣
- * @param yStart  鍨傜洿鏂瑰悜璧峰鍧愭爣
- * @param xEnd    姘村钩鏂瑰悜缁撴潫鍧愭爣
- * @param yEnd    鍨傜洿鏂瑰悜缁撴潫鍧愭爣
+ * @brief 设置显示 RAM 写像素窗口。
+ *
+ * @param xStart  水平方向起始坐标
+ * @param yStart  垂直方向起始坐标
+ * @param xEnd    水平方向结束坐标
+ * @param yEnd    垂直方向结束坐标
  */
 void st7789_SetWindow(uint16_t xStart, uint16_t yStart, uint16_t xEnd, uint16_t yEnd) {
     uint8_t caset[4];
@@ -300,11 +308,13 @@ void st7789_WritePixels(const uint8_t *pixels, uint32_t length)
 }
 
 /**
- * @brief 濉厖鐭╁舰鍖哄煙銆? * 
- * @param color     16 浣?RGB565 棰滆壊鍊? * @param startX    鐭╁舰璧峰 X 鍧愭爣
- * @param startY    鐭╁舰璧峰 Y 鍧愭爣
- * @param width     鐭╁舰瀹藉害
- * @param height    鐭╁舰楂樺害
+ * @brief 填充矩形区域。
+ *
+ * @param color     16 位 RGB565 颜色值
+ * @param startX    矩形起始 X 坐标
+ * @param startY    矩形起始 Y 坐标
+ * @param width     矩形宽度
+ * @param height    矩形高度
  */
 void st7789_FillArea(uint16_t color, uint16_t startX, uint16_t startY, uint16_t width, uint16_t height) {
     uint8_t hi;
@@ -319,7 +329,7 @@ void st7789_FillArea(uint16_t color, uint16_t startX, uint16_t startY, uint16_t 
     lo = (uint8_t)color;
     pixelCount = (uint32_t)width * (uint32_t)height;
 
-    //* 鏍规嵁璧风偣鍜屽楂樿缃?LCD 鍐欏叆绐楀彛
+    //* 根据起点和宽高设置 LCD 写入窗口
     st7789_SetWindow(startX, startY, startX + width - 1, startY + height - 1);
 
 #if (ST7789_FILL_MODE == ST7789_FILL_MODE_PIXEL)
@@ -360,57 +370,64 @@ void st7789_Clear(uint16_t color)
 }
 
 /**
- * @brief 灏?LCD 鐗囬€夊紩鑴氳缃负绌洪棽鐢靛钩銆? *
- * PB8 杩炴帴鍒?LCD_CS銆傞珮鐢靛钩琛ㄧず LCD 涓嶅搷搴斿綋鍓?SPI 鎬荤嚎浼犺緭銆? */
+ * @brief 将 LCD 片选引脚设置为空闲电平。
+ *
+ * PB8 连接到 LCD_CS。高电平表示 LCD 不响应当前 SPI 总线传输。 */
 static void CS_IDLE(void)
 {
     HAL_GPIO_WritePin(LCD_CS_GPIO_PORT, LCD_CS_GPIO_PIN, GPIO_PIN_SET);
 }
 
 /**
- * @brief 灏?LCD 鐗囬€夊紩鑴氳缃负鏈夋晥鐢靛钩銆? *
- * PB8 杩炴帴鍒?LCD_CS銆備綆鐢靛钩琛ㄧず鍦?SPI 浼犺緭鍓嶉€変腑 LCD銆? */
+ * @brief 将 LCD 片选引脚设置为有效电平。
+ *
+ * PB8 连接到 LCD_CS。低电平表示在 SPI 传输前选中 LCD。 */
 static void CS_ACTIVE(void)
 {
     HAL_GPIO_WritePin(LCD_CS_GPIO_PORT, LCD_CS_GPIO_PIN, GPIO_PIN_RESET);
 }
 
 /**
- * @brief 閫氳繃 LCD D/C 寮曡剼閫夋嫨鍛戒护浼犺緭銆? *
- * PB9 杩炴帴鍒?LCD_DC銆備綆鐢靛钩琛ㄧず鎺ヤ笅鏉ョ殑 SPI 瀛楄妭鏄懡浠ゃ€? */
+ * @brief 通过 LCD D/C 引脚选择命令传输。
+ *
+ * PB9 连接到 LCD_DC。低电平表示接下来的 SPI 字节是命令。 */
 static void DC_COMMAND(void)
 {
     HAL_GPIO_WritePin(LCD_DC_GPIO_PORT, LCD_DC_GPIO_PIN, GPIO_PIN_RESET);
 }
 
 /**
- * @brief 閫氳繃 LCD D/C 寮曡剼閫夋嫨鏁版嵁浼犺緭銆? *
- * PB9 杩炴帴鍒?LCD_DC銆傞珮鐢靛钩琛ㄧず鎺ヤ笅鏉ョ殑 SPI 瀛楄妭鏄暟鎹€? */
+ * @brief 通过 LCD D/C 引脚选择数据传输。
+ *
+ * PB9 连接到 LCD_DC。高电平表示接下来的 SPI 字节是数据。 */
 static void DC_DATA(void)
 {
     HAL_GPIO_WritePin(LCD_DC_GPIO_PORT, LCD_DC_GPIO_PIN, GPIO_PIN_SET);
 }
 
 /**
- * @brief 閲婃斁 LCD 纭欢澶嶄綅寮曡剼銆? *
- * PB7 杩炴帴鍒?LCD_RST銆傞珮鐢靛钩璁?ST7789 绂诲紑澶嶄綅鐘舵€併€? */
+ * @brief 释放 LCD 硬件复位引脚。
+ *
+ * PB7 连接到 LCD_RST。高电平让 ST7789 离开复位状态。 */
 static void RESX_IDLE(void)
 {
     HAL_GPIO_WritePin(LCD_RST_GPIO_PORT, LCD_RST_GPIO_PIN, GPIO_PIN_SET);
 }
 
 /**
- * @brief 鎷変綆 LCD 纭欢澶嶄綅寮曡剼銆? *
- * PB7 杩炴帴鍒?LCD_RST銆備綆鐢靛钩浼氬浣?ST7789 鎺у埗鍣ㄣ€? */
+ * @brief 拉低 LCD 硬件复位引脚。
+ *
+ * PB7 连接到 LCD_RST。低电平会复位 ST7789 控制器。 */
 static void RESX_ACTIVE(void)
 {
     HAL_GPIO_WritePin(LCD_RST_GPIO_PORT, LCD_RST_GPIO_PIN, GPIO_PIN_RESET);
 }
 
 /**
- * @brief 閫氳繃 PB0 TIM3_CH3 鎵撳紑 LCD 鑳屽厜銆? *
- * TIM3_CH3 鍦?Core/Src/tim.c 涓厤缃殑 Period 涓?300銆傚皢 CCR 璁剧疆涓?ARR
- * 鍙互寰楀埌婊″崰绌烘瘮锛岀劧鍚?HAL_TIM_PWM_Start 浼氬湪 PB0 杈撳嚭 PWM 娉㈠舰銆? */
+ * @brief 通过 PB0 TIM3_CH3 打开 LCD 背光。
+ *
+ * TIM3_CH3 在 Core/Src/tim.c 中配置的 Period 为 300。将 CCR 设置为 ARR
+ * 可以得到满占空比，然后 HAL_TIM_PWM_Start 会在 PB0 输出 PWM 波形。 */
 static void LCD_BLK_ON(void)
 {
     __HAL_TIM_SET_COMPARE(&LCD_BLK_TIM, LCD_BLK_TIM_CHANNEL, __HAL_TIM_GET_AUTORELOAD(&LCD_BLK_TIM));
@@ -418,9 +435,12 @@ static void LCD_BLK_ON(void)
 }
 
 /**
- * @brief 閫氳繃 SPI1 鍚?LCD 鍐欏叆 1 涓瓧鑺傘€? *
- * 杩欎釜灏忓皝瑁呯敱 LCD_IO_WriteCommand 浣跨敤锛氬綋 DC 璁剧疆涓哄懡浠ゆā寮忓悗锛? * 鍙渶瑕佸彂閫?1 涓懡浠ゅ瓧鑺傘€? *
- * @param data 瑕佸彂閫佺殑瀛楄妭
+ * @brief 通过 SPI1 向 LCD 写入 1 个字节。
+ *
+ * 这个小封装由 LCD_IO_WriteCommand 使用：当 DC 设置为命令模式后，
+ * 只需要发送 1 个命令字节。
+ *
+ * @param data 要发送的字节
  */
 static void LCD_IO_WriteDataByte(uint8_t data)
 {
@@ -428,34 +448,39 @@ static void LCD_IO_WriteDataByte(uint8_t data)
 }
 
 /**
- * @brief 鍒濆鍖?LCD IO 鐘舵€併€佹墦寮€鑳屽厜骞舵墽琛岀‖浠跺浣嶆椂搴忋€? *
- * 鏈嚱鏁板亣瀹?main.c 涓凡缁忔墽琛岃繃 MX_GPIO_Init銆丮X_SPI1_Init 鍜?MX_TIM3_Init銆? * 瀹冧笉浼氶噸鏂伴厤缃紩鑴氾紝鍙細椹卞姩宸叉湁鐨?GPIO/PWM 杈撳嚭瀹屾垚 LCD 鍚姩鏃跺簭銆? */
+ * @brief 初始化 LCD IO 状态、打开背光并执行硬件复位时序。
+ *
+ * 本函数假设 main.c 中已经执行过 MX_GPIO_Init、MX_SPI1_Init 和 MX_TIM3_Init。
+ * 它不会重新配置引脚，只会驱动已有的 GPIO/PWM 输出完成 LCD 启动时序。 */
 static void LCD_IO_Init(void)
 {
     LCD_BLK_ON();
 
     CS_IDLE();
-    LCD_IO_Delay(20);  // 澶嶄綅鑴夊啿寤舵椂
-    CS_ACTIVE();       // 灏?CS 寮曡剼缃綆
-    LCD_IO_Delay(20);  // 澶嶄綅鑴夊啿寤舵椂
+    LCD_IO_Delay(20);  // 复位脉冲延时
+    CS_ACTIVE();       // 将 CS 引脚置低
+    LCD_IO_Delay(20);  // 复位脉冲延时
 
-    //* RESX 纭欢澶嶄綅寮曡剼鏃跺簭
-    RESX_IDLE();      // 灏?RESX 寮曡剼缃珮
-    LCD_IO_Delay(50); // 澶嶄綅鑴夊啿寤舵椂
-    RESX_ACTIVE();    // 灏?RESX 寮曡剼缃綆
-    LCD_IO_Delay(50); // 澶嶄綅鑴夊啿寤舵椂
-    RESX_IDLE();      // 灏?RESX 寮曡剼缃珮
-    LCD_IO_Delay(50); // 澶嶄綅鑴夊啿寤舵椂
+    //* RESX 硬件复位引脚时序
+    RESX_IDLE();      // 将 RESX 引脚置高
+    LCD_IO_Delay(50); // 复位脉冲延时
+    RESX_ACTIVE();    // 将 RESX 引脚置低
+    LCD_IO_Delay(50); // 复位脉冲延时
+    RESX_IDLE();      // 将 RESX 引脚置高
+    LCD_IO_Delay(50); // 复位脉冲延时
 }
 
 /**
- * @brief 閫氳繃 SPI1 鍚?LCD 鍐欏叆鏁版嵁瀛楄妭銆? *
- * ST7789 鍛戒护閫氬父閬靛惊涓嬮潰鐨勬祦绋嬶細
+ * @brief 通过 SPI1 向 LCD 写入数据字节。
+ *
+ * ST7789 命令通常遵循下面的流程：
  * 1. LCD_IO_WriteCommand(command)
  * 2. LCD_IO_WriteData(parameter_buffer, parameter_length)
  *
- * 鍙戦€佹暟鎹墠锛孭B9/LCD_DC 浼氳缃珮銆侾B8/LCD_CS 鍙湪 SPI 浼犺緭鏈熼棿琚媺浣庛€? *
- * @param data 鏁版嵁缂撳啿鍖烘寚閽? * @param length 瑕佸彂閫佺殑瀛楄妭鏁? */
+ * 发送数据前，PB9/LCD_DC 会被置高。PB8/LCD_CS 只在 SPI 传输期间被拉低。
+ *
+ * @param data 数据缓冲区指针
+ * @param length 要发送的字节数 */
 static void LCD_IO_WriteData(uint8_t *data, uint8_t length)
 {
     if ((data == NULL) || (length == 0U)) {
@@ -470,9 +495,12 @@ static void LCD_IO_WriteData(uint8_t *data, uint8_t length)
 }
 
 /**
- * @brief 閫氳繃 SPI1 闃诲鏂瑰紡鍚?LCD 鍐欏叆涓€娈垫暟鎹紦鍐插尯銆? *
- * 杩欎釜鍑芥暟鐢ㄤ簬杈冨ぇ鐨勮繛缁暟鎹彂閫侊紝渚嬪鐭╁舰濉厖鏃剁殑涓€鍧楅鑹茬紦鍐插尯銆? *
- * @param data 鏁版嵁缂撳啿鍖烘寚閽? * @param length 瑕佸彂閫佺殑瀛楄妭鏁? */
+ * @brief 通过 SPI1 阻塞方式向 LCD 写入一段数据缓冲区。
+ *
+ * 这个函数用于较大的连续数据发送，例如矩形填充时的一块颜色缓冲区。
+ *
+ * @param data 数据缓冲区指针
+ * @param length 要发送的字节数 */
 #if (ST7789_FILL_MODE == ST7789_FILL_MODE_BUFFER)
 static void LCD_IO_WriteDatas(uint8_t *data, uint16_t length)
 {
@@ -489,10 +517,13 @@ static void LCD_IO_WriteDatas(uint8_t *data, uint16_t length)
 #endif
 
 /**
- * @brief 閫氳繃 SPI1 DMA 闈為樆濉炴柟寮忓悜 LCD 鍐欏叆涓€娈垫暟鎹紦鍐插尯銆? *
- * 鏈嚱鏁板彧鍚姩 DMA 浼犺緭锛屼笉绛夊緟浼犺緭瀹屾垚銆侱MA 瀹屾垚鍚庣敱 HAL_SPI_TxCpltCallback
- * 閲婃斁 LCD 鐗囬€夛紝骞堕€氳繃 st7789_TxCpltCallback 閫氱煡涓婂眰銆? *
- * @param data 鏁版嵁缂撳啿鍖烘寚閽堛€? * @param length 瑕佸彂閫佺殑瀛楄妭鏁般€? */
+ * @brief 通过 SPI1 DMA 非阻塞方式向 LCD 写入一段数据缓冲区。
+ *
+ * 本函数只启动 DMA 传输，不等待传输完成。DMA 完成后由 HAL_SPI_TxCpltCallback
+ * 释放 LCD 片选，并通过 st7789_TxCpltCallback 通知上层。
+ *
+ * @param data 数据缓冲区指针
+ * @param length 要发送的字节数 */
 #if (ST7789_FILL_MODE == ST7789_FILL_MODE_DMA)
 static void LCD_IO_WriteDatasDMA(uint8_t *data, uint16_t length)
 {
@@ -521,10 +552,13 @@ static void LCD_IO_WriteDatasDMA(uint8_t *data, uint16_t length)
 #endif
 
 /**
- * @brief 閫氳繃 SPI1 DMA 闃诲鏂瑰紡鍚?LCD 鍐欏叆涓€娈垫暟鎹紦鍐插尯銆? *
- * 杩欎釜鍑芥暟淇濈暀缁欏垵濮嬪寲娓呭睆銆佺函鑹插～鍏呯瓑 BSP 鍐呴儴娴佺▼浣跨敤锛岄伩鍏嶈繖浜涙祦绋嬪湪寰幆鍒嗗潡鍙戦€佹椂
- * 鍥?DMA 灏氭湭瀹屾垚鑰岃鐩栦笅涓€娆′紶杈撱€? *
- * @param data 鏁版嵁缂撳啿鍖烘寚閽堛€? * @param length 瑕佸彂閫佺殑瀛楄妭鏁般€? */
+ * @brief 通过 SPI1 DMA 阻塞方式向 LCD 写入一段数据缓冲区。
+ *
+ * 这个函数保留给初始化清屏、纯色填充等 BSP 内部流程使用，避免这些流程在循环分块发送时
+ * 因 DMA 尚未完成而覆盖下一次传输。
+ *
+ * @param data 数据缓冲区指针
+ * @param length 要发送的字节数 */
 #if (ST7789_FILL_MODE == ST7789_FILL_MODE_DMA)
 static void LCD_IO_WriteDatasDMA_Blocking(uint8_t *data, uint16_t length)
 {
@@ -556,16 +590,19 @@ static void LCD_IO_WriteDatasDMA_Blocking(uint8_t *data, uint16_t length)
 #endif
 
 /**
- * @brief SPI DMA 鍙戦€佸畬鎴愬悗鐨勫急鍥炶皟銆? *
- * 鏄剧ず绉绘灞傚彲浠ラ噸鍐欒繖涓嚱鏁帮紝鐢ㄦ潵鎺ユ敹 LCD 鍍忕礌 DMA 浼犺緭瀹屾垚浜嬩欢銆? */
+ * @brief SPI DMA 发送完成后的弱回调。
+ *
+ * 显示移植层可以重写这个函数，用来接收 LCD 像素 DMA 传输完成事件。 */
 __weak void st7789_TxCpltCallback(void)
 {
 }
 
 /**
- * @brief HAL SPI 鍙戦€佸畬鎴愬洖璋冦€? *
- * 璇ュ嚱鏁板湪 SPI/DMA 涓柇涓婁笅鏂囦腑鎵ц锛屽彧閲婃斁鐗囬€夊苟閫氱煡涓婂眰浜嬩欢锛屼笉鐩存帴璋冪敤 LVGL API銆? *
- * @param hspi SPI 鍙ユ焺銆? */
+ * @brief HAL SPI 发送完成回调。
+ *
+ * 该函数在 SPI/DMA 中断上下文中执行，只释放片选并通知上层事件，不直接调用 LVGL API。
+ *
+ * @param hspi SPI 句柄 */
 void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
 {
     if (hspi->Instance == LCD_SPI.Instance) {
@@ -578,9 +615,11 @@ void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
 }
 
 /**
- * @brief HAL SPI 閿欒鍥炶皟銆? *
- * DMA 浼犺緭寮傚父鏃堕噴鏀剧墖閫夊苟閫氱煡涓婂眰锛岄伩鍏?LVGL 涓€鐩寸瓑寰呭埛鏂板畬鎴愩€? *
- * @param hspi SPI 鍙ユ焺銆? */
+ * @brief HAL SPI 错误回调。
+ *
+ * DMA 传输异常时释放片选并通知上层，避免 LVGL 一直等待刷新完成。
+ *
+ * @param hspi SPI 句柄 */
 void HAL_SPI_ErrorCallback(SPI_HandleTypeDef *hspi)
 {
     if (hspi->Instance == LCD_SPI.Instance) {
@@ -593,9 +632,11 @@ void HAL_SPI_ErrorCallback(SPI_HandleTypeDef *hspi)
 }
 
 /**
- * @brief 閫氳繃 SPI1 鍚?LCD 鍐欏叆 1 涓懡浠ゅ瓧鑺傘€? *
- * 鍙戦€佸懡浠ゅ墠锛孭B9/LCD_DC 浼氳缃綆銆侾B8/LCD_CS 鍙湪璇ュ懡浠ゅ瓧鑺備紶杈撴湡闂磋鎷変綆銆? *
- * @param command ST7789 鍛戒护鐮? */
+ * @brief 通过 SPI1 向 LCD 写入 1 个命令字节。
+ *
+ * 发送命令前，PB9/LCD_DC 会被置低。PB8/LCD_CS 只在该命令字节传输期间被拉低。
+ *
+ * @param command ST7789 命令 */
 static void LCD_IO_WriteCommand(uint8_t command)
 {
     DC_COMMAND();
@@ -605,9 +646,12 @@ static void LCD_IO_WriteCommand(uint8_t command)
 }
 
 /**
- * @brief LCD 鎿嶄綔姣绾у欢鏃躲€? *
- * ST7789 澶嶄綅鍜屽垵濮嬪寲鍛戒护涔嬮棿鏈変簺姝ラ闇€瑕佹绉掔骇绛夊緟銆? * HAL_Delay 鍦?HAL_Init 瀹屾垚鍚庝娇鐢?STM32 HAL tick 瀹炵幇寤舵椂銆? *
- * @param delay 寤舵椂鏃堕棿锛屽崟浣?ms
+ * @brief LCD 操作毫秒级延时。
+ *
+ * ST7789 复位和初始化命令之间有些步骤需要毫秒级等待。
+ * HAL_Delay 在 HAL_Init 完成后使用 STM32 HAL tick 实现延时。
+ *
+ * @param delay 延时时间，单位 ms
  */
 static void LCD_IO_Delay(uint32_t delay)
 {
