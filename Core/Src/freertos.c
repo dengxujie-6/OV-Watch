@@ -54,7 +54,7 @@ osThreadId_t watchdogTaskHandle;
 const osThreadAttr_t watchdogTask_attributes = {
   .name = "watchdogTask",
   .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
+  .priority = (osPriority_t) osPriorityNormal1,
 };
 
 /* USER CODE END Variables */
@@ -63,7 +63,7 @@ osThreadId_t defaultTaskHandle;
 const osThreadAttr_t defaultTask_attributes = {
   .name = "defaultTask",
   .stack_size = 128 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
+  .priority = (osPriority_t) osPriorityLow,
 };
 
 /* Definitions for hardWareInitTask */
@@ -87,7 +87,7 @@ osThreadId_t keyTaskHandle;
 const osThreadAttr_t keyTask_attributes = {
   .name = "keyTask",
   .stack_size = 256 * 4,
-  .priority = (osPriority_t) osPriorityNormal,
+  .priority = (osPriority_t) osPriorityLow1,
 };
 
 /* Private function prototypes -----------------------------------------------*/

@@ -25,7 +25,6 @@ struct menu_page {
     lv_obj_t * root;               /**< 页面根 screen，归本页面对象所有。 */
     lv_obj_t * list;               /**< 菜单列表容器，root 删除时自动删除。 */
     lv_timer_t * sb_hide_timer;    /**< 滚动条延迟隐藏定时器，由本页面删除。 */
-    lv_timer_t * restore_scroll_timer; /**< 返回菜单时恢复滚动位置的定时器。 */
     lv_obj_t * last_clicked_btn;   /**< 最近点击的菜单按钮，仅在本页面存活时有效。 */
     int32_t last_scroll_y;         /**< 进入子页面前记录的列表滚动位置。 */
 };
@@ -52,8 +51,8 @@ typedef struct {
 
 static menu_item_ctx_t s_menu_item_ctx[MENU_ITEM_COUNT];
 static menu_page_t * s_menu_page;
-
-static void menu_page_restore_scroll_cb(lv_timer_t * t);
+static int32_t s_menu_saved_scroll_y;
+static bool s_menu_saved_scroll_valid;
 
 static void menu_item_effect_set(menu_item_ctx_t * ctx, bool on)
 {
@@ -113,7 +112,11 @@ static void menu_item_event_cb(lv_event_t * e)
 
         if(ctx && ctx->owner) {
             ctx->owner->last_clicked_btn = lv_event_get_target(e);
-            if(ctx->owner->list) ctx->owner->last_scroll_y = lv_obj_get_scroll_y(ctx->owner->list);
+            if(ctx->owner->list) {
+                ctx->owner->last_scroll_y = lv_obj_get_scroll_y(ctx->owner->list);
+                s_menu_saved_scroll_y = ctx->owner->last_scroll_y;
+                s_menu_saved_scroll_valid = true;
+            }
         }
 
         if(title == NULL) {
@@ -213,31 +216,12 @@ static void menu_page_key_cb(lv_event_t * e)
     (void)PageManager_Pop();
 }
 
-static void menu_page_screen_loaded_cb(lv_event_t * e)
+static void menu_page_restore_scroll(menu_page_t * page)
 {
-    if(lv_event_get_code(e) != LV_EVENT_SCREEN_LOADED) return;
-
-    menu_page_t * page = (menu_page_t *)lv_event_get_user_data(e);
     if(!page || !page->list) return;
 
-    if(page->restore_scroll_timer) {
-        lv_timer_reset(page->restore_scroll_timer);
-    }
-    else {
-        page->restore_scroll_timer = lv_timer_create(menu_page_restore_scroll_cb, 30, page);
-        lv_timer_set_repeat_count(page->restore_scroll_timer, 1);
-    }
-}
-
-static void menu_page_restore_scroll_cb(lv_timer_t * t)
-{
-    menu_page_t * page = (menu_page_t *)lv_timer_get_user_data(t);
-    if(!page || !page->list) return;
-
-    page->restore_scroll_timer = NULL;
     lv_obj_update_layout(page->list);
     lv_obj_scroll_to_y(page->list, page->last_scroll_y, LV_ANIM_OFF);
-    lv_timer_del(t);
 }
 
 static void sb_hide_timer_cb(lv_timer_t * t)
@@ -301,14 +285,12 @@ menu_page_t * menu_page_create(void)
     lv_obj_set_style_pad_all(page->root, 8, 0);
     lv_obj_set_scrollbar_mode(page->root, LV_SCROLLBAR_MODE_OFF);
     lv_obj_add_event_cb(page->root, menu_page_key_cb, LV_EVENT_KEY, NULL);
-    lv_obj_add_event_cb(page->root, menu_page_screen_loaded_cb, LV_EVENT_SCREEN_LOADED, page);
 
     page->list = lv_obj_create(page->root);
     lv_obj_remove_style_all(page->list);
     page->sb_hide_timer = NULL;
-    page->restore_scroll_timer = NULL;
     page->last_clicked_btn = NULL;
-    page->last_scroll_y = 0;
+    page->last_scroll_y = s_menu_saved_scroll_valid ? s_menu_saved_scroll_y : 0;
 
     lv_obj_set_size(page->list, LV_HOR_RES - 16, LV_VER_RES - 16);
     lv_obj_set_style_bg_opa(page->list, LV_OPA_TRANSP, 0);
@@ -332,6 +314,8 @@ menu_page_t * menu_page_create(void)
         (void)menu_item_create(page->list, page, &items[i], &s_menu_item_ctx[i]);
     }
 
+    menu_page_restore_scroll(page);
+
     return page;
 }
 
@@ -341,10 +325,6 @@ void menu_page_destroy(menu_page_t * page)
     if(page->sb_hide_timer) {
         lv_timer_del(page->sb_hide_timer);
         page->sb_hide_timer = NULL;
-    }
-    if(page->restore_scroll_timer) {
-        lv_timer_del(page->restore_scroll_timer);
-        page->restore_scroll_timer = NULL;
     }
     if(page->root) lv_obj_del(page->root);
     memset(page, 0, sizeof(*page));

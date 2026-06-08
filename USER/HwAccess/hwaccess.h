@@ -66,6 +66,21 @@ typedef struct Watchdogstruct_typedef
 } obj_Watchdog;
 
 /**
+ * @brief 外部 PROM 读写操作表。
+ *
+ * PROM 底层使用 PA11/PA12 软件 I2C 和 BL24C02F EEPROM 驱动，上层只通过字节地址访问。
+ */
+typedef struct Promstruct_typedef
+{
+    void (*init)(void);  /**< 初始化 PROM 专用 I2C 总线。 */
+    int (*probe)(void);  /**< 探测 PROM 是否响应 ACK。 */
+    int (*read)(uint8_t addr, uint8_t * data, uint16_t len);  /**< 从 PROM 连续读取字节。 */
+    int (*write)(uint8_t addr, const uint8_t * data, uint16_t len);  /**< 向 PROM 连续写入字节。 */
+    int (*read_byte)(uint8_t addr, uint8_t * value);  /**< 读取 PROM 单字节。 */
+    int (*write_byte)(uint8_t addr, uint8_t value);  /**< 写入 PROM 单字节。 */
+} obj_Prom;
+
+/**
  * @brief 顶层硬件访问对象。
  *
  * 后续新增硬件模块时，应以模块操作表的形式加入这里，任务层和 UI 层统一通过该对象访问硬件。
@@ -76,6 +91,7 @@ typedef struct hwaccess_typedef
     obj_Key key;  /**< 按键操作表。 */
     obj_Power power;  /**< 电源与充电状态访问接口。 */
     obj_Watchdog watchdog;  /**< 外部硬件看门狗操作表。 */
+    obj_Prom prom;  /**< 外部 PROM 读写操作表。 */
 } obj_HwAccess;
 
 /**

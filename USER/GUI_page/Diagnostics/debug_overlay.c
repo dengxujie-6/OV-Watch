@@ -21,6 +21,7 @@ static void DebugOverlay_DisplayEventCb(lv_event_t * e);
 static void DebugOverlay_TimerCb(lv_timer_t * timer);
 static uint8_t DebugOverlay_ReadBatteryPercent(uint8_t * valid);
 static void DebugOverlay_RefreshLabel(void);
+static void DebugOverlay_ReadLvMem(uint32_t * total_bytes, uint32_t * used_bytes);
 
 /**
  * @brief 初始化全局调试浮层。
@@ -49,7 +50,7 @@ void DebugOverlay_Init(void)
         return;
     }
 
-    lv_label_set_text(s_debug_overlay.label, "FPS:-- BAT:--%");
+    lv_label_set_text(s_debug_overlay.label, "FPS:-- BAT:--%\nLV:--/--B");
     lv_obj_set_style_text_color(s_debug_overlay.label, lv_color_white(), 0);
     lv_obj_set_style_text_font(s_debug_overlay.label, LV_FONT_DEFAULT, 0);
     lv_obj_set_style_bg_color(s_debug_overlay.label, lv_color_black(), 0);
@@ -148,26 +149,60 @@ static uint8_t DebugOverlay_ReadBatteryPercent(uint8_t * valid)
 }
 
 /**
+ * @brief 读取 LVGL 内置内存池的总量和已用量。
+ *
+ * @param total_bytes 输出 LVGL 内存池总字节数，允许为 NULL。
+ * @param used_bytes 输出 LVGL 内存池已用字节数，允许为 NULL。
+ */
+static void DebugOverlay_ReadLvMem(uint32_t * total_bytes, uint32_t * used_bytes)
+{
+    lv_mem_monitor_t monitor;
+    size_t used_size;
+
+    lv_mem_monitor(&monitor);
+    if(monitor.total_size >= monitor.free_size) {
+        used_size = monitor.total_size - monitor.free_size;
+    } else {
+        used_size = 0U;
+    }
+
+    if(total_bytes != NULL) {
+        *total_bytes = (uint32_t)monitor.total_size;
+    }
+
+    if(used_bytes != NULL) {
+        *used_bytes = (uint32_t)used_size;
+    }
+}
+
+/**
  * @brief 刷新浮层文本。
  */
 static void DebugOverlay_RefreshLabel(void)
 {
     uint8_t battery_valid;
     uint8_t battery_percent;
+    uint32_t lv_total_bytes;
+    uint32_t lv_used_bytes;
 
     if(s_debug_overlay.label == NULL) {
         return;
     }
 
     battery_percent = DebugOverlay_ReadBatteryPercent(&battery_valid);
+    DebugOverlay_ReadLvMem(&lv_total_bytes, &lv_used_bytes);
     if(battery_valid == 0U) {
         lv_label_set_text_fmt(s_debug_overlay.label,
-                              "FPS:%lu BAT:--%%",
-                              (unsigned long)s_debug_overlay.fps);
+                              "FPS:%lu BAT:--%%\nLV:%lu/%luB",
+                              (unsigned long)s_debug_overlay.fps,
+                              (unsigned long)lv_used_bytes,
+                              (unsigned long)lv_total_bytes);
     } else {
         lv_label_set_text_fmt(s_debug_overlay.label,
-                              "FPS:%lu BAT:%u%%",
+                              "FPS:%lu BAT:%u%%\nLV:%lu/%luB",
                               (unsigned long)s_debug_overlay.fps,
-                              battery_percent);
+                              battery_percent,
+                              (unsigned long)lv_used_bytes,
+                              (unsigned long)lv_total_bytes);
     }
 }

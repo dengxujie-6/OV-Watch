@@ -1,17 +1,18 @@
 #include "lvgl.h"
-#include "cmsis_os2.h"
+#include "FreeRTOS.h"
+#include "semphr.h"
 #include "hwaccess.h"
 #include "st7789v.h"
 
 #define LV_PORT_DISP_BUFFER_LINES    40U
 #define LV_PORT_DISP_Y_OFFSET        20U
-#define LV_PORT_DISP_DMA_READY_FLAG  0x00000001U
 #define LV_PORT_DISP_DMA_TIMEOUT_MS  100U
 
 static uint8_t disp_buf_1[LCD_WIDTH * LV_PORT_DISP_BUFFER_LINES * 2U];
 static uint8_t disp_buf_2[LCD_WIDTH * LV_PORT_DISP_BUFFER_LINES * 2U];
 
-static osThreadId_t lvgl_thread_id;
+static StaticSemaphore_t dma_ready_sem_buffer;
+static SemaphoreHandle_t dma_ready_sem;
 
 static void disp_flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map);
 static void disp_flush_wait_cb(lv_display_t *disp);
@@ -23,7 +24,7 @@ void lv_port_disp_init(void)
 {
     lv_display_t *disp;
 
-    lvgl_thread_id = osThreadGetId();
+    dma_ready_sem = xSemaphoreCreateBinaryStatic(&dma_ready_sem_buffer);
     disp = lv_display_create(LCD_WIDTH, LCD_HEIGHT);
 
     lv_display_set_color_format(disp, LV_COLOR_FORMAT_RGB565_SWAPPED);
@@ -43,8 +44,15 @@ void lv_port_disp_init(void)
  */
 void st7789_TxCpltCallback(void)
 {
-    if (lvgl_thread_id != NULL) {
-        (void)osThreadFlagsSet(lvgl_thread_id, LV_PORT_DISP_DMA_READY_FLAG);
+    if (dma_ready_sem != NULL) {
+        if (xPortIsInsideInterrupt() != pdFALSE) {
+            BaseType_t higher_priority_task_woken = pdFALSE;
+
+            (void)xSemaphoreGiveFromISR(dma_ready_sem, &higher_priority_task_woken);
+            portYIELD_FROM_ISR(higher_priority_task_woken);
+        } else {
+            (void)xSemaphoreGive(dma_ready_sem);
+        }
     }
 }
 
@@ -65,7 +73,9 @@ static void disp_flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px
     uint32_t height = (uint32_t)(y2 - y1 + 1U);
 
     /* LCD 物理有效显示区域比 LVGL 原点向下偏移 20 像素。 */
-    (void)osThreadFlagsClear(LV_PORT_DISP_DMA_READY_FLAG);
+    if (dma_ready_sem != NULL) {
+        (void)xSemaphoreTake(dma_ready_sem, 0U);
+    }
     st7789_SetWindow(x1, y1, x2, y2);
     st7789_WritePixels(px_map, width * height * 2U);
 #if (ST7789_FILL_MODE != ST7789_FILL_MODE_DMA)
@@ -85,9 +95,9 @@ static void disp_flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px
 static void disp_flush_wait_cb(lv_display_t *disp)
 {
 #if (ST7789_FILL_MODE == ST7789_FILL_MODE_DMA)
-    (void)osThreadFlagsWait(LV_PORT_DISP_DMA_READY_FLAG,
-                            osFlagsWaitAny,
-                            LV_PORT_DISP_DMA_TIMEOUT_MS);
+    if (dma_ready_sem != NULL) {
+        (void)xSemaphoreTake(dma_ready_sem, pdMS_TO_TICKS(LV_PORT_DISP_DMA_TIMEOUT_MS));
+    }
     lv_display_flush_ready(disp);
 #else
     (void)disp;

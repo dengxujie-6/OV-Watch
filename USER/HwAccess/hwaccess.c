@@ -3,6 +3,7 @@
 #include "bsp_ext_watchdog.h"
 #include "bsp_key.h"
 #include "bsp_power.h"
+#include "bsp_prom.h"
 #include "CST816T.h"
 #include "st7789v.h"
 
@@ -69,5 +70,13 @@ obj_HwAccess HwAccess = {
         .enable = BSP_ExtWatchdog_Enable,
         .disable = BSP_ExtWatchdog_Disable,
         .feed = BSP_ExtWatchdog_Feed,
+    },
+    .prom = {
+        .init = BSP_PROM_Init,
+        .probe = BSP_PROM_Probe,
+        .read = BSP_PROM_Read,
+        .write = BSP_PROM_Write,
+        .read_byte = BSP_PROM_ReadByte,
+        .write_byte = BSP_PROM_WriteByte,
     },
 };

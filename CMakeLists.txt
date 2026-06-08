@@ -125,6 +125,7 @@ target_include_directories(${TARGET_NAME} PRIVATE
     USER/Task/GUI_Task
     USER/Task/HardWare_init_task
     USER/Task/Key_Task
+    USER/Task/PROM_Test
     USER/Task/Watchdog_Task
     USER/PageManagement
     USER/GUI_page
@@ -144,6 +145,7 @@ target_include_directories(${TARGET_NAME} PRIVATE
     BSP/Power
     BSP/IIC
     BSP/Watchdog
+    BSP/PROM
     Middlewares/Third_Party/FreeRTOS/Source/include
     Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2
     "${FREERTOS_GCC_PORT_DIR}"
