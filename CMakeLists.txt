@@ -129,6 +129,7 @@ target_include_directories(${TARGET_NAME} PRIVATE
     USER/Task/Watchdog_Task
     USER/PageManagement
     USER/GUI_page
+    USER/GUI_page/Home
     USER/GUI_page/Menu
     USER/GUI_page/Common
     USER/GUI_page/Tools

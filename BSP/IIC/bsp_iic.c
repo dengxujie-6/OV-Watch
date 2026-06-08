@@ -150,6 +150,63 @@ int BSP_IIC_Read(uint8_t dev_addr_7bit, uint8_t * data, uint16_t len)
 }
 
 /**
+ * @brief 写入命令字节后使用重复起始读取数据。
+ */
+int BSP_IIC_WriteRead(uint8_t dev_addr_7bit,
+                      const uint8_t * tx_data,
+                      uint16_t tx_len,
+                      uint8_t * rx_data,
+                      uint16_t rx_len)
+{
+    uint16_t i;
+
+    if((BSP_IIC_IsAddressValid(dev_addr_7bit) == 0U) ||
+       (tx_data == NULL) ||
+       (tx_len == 0U) ||
+       (rx_data == NULL) ||
+       (rx_len == 0U)) {
+        return -1;
+    }
+
+    if(iic_initialized == 0U) {
+        BSP_IIC_Init();
+    }
+
+    BSP_IIC_Start();
+    if(BSP_IIC_WriteAddress(dev_addr_7bit) == 0U) {
+        BSP_IIC_Stop();
+        return -2;
+    }
+
+    for(i = 0U; i < tx_len; i++) {
+        if(BSP_IIC_SendByte(tx_data[i]) == 0U) {
+            BSP_IIC_Stop();
+            return -3;
+        }
+    }
+
+    // 写阶段结束后不发送 STOP，使用重复起始保持一次完整寄存器读事务。
+    BSP_IIC_Start();
+    if(BSP_IIC_ReadAddress(dev_addr_7bit) == 0U) {
+        BSP_IIC_Stop();
+        return -4;
+    }
+
+    for(i = 0U; i < rx_len; i++) {
+        rx_data[i] = BSP_IIC_ReceiveByte();
+        if((i + 1U) < rx_len) {
+            BSP_IIC_Ack();
+        }
+        else {
+            BSP_IIC_NoAck();
+        }
+    }
+
+    BSP_IIC_Stop();
+    return 0;
+}
+
+/**
  * @brief 写入器件 8 位寄存器的单字节值。
  */
 int BSP_IIC_WriteReg(uint8_t dev_addr_7bit, uint8_t reg, uint8_t value)
@@ -167,45 +224,7 @@ int BSP_IIC_WriteReg(uint8_t dev_addr_7bit, uint8_t reg, uint8_t value)
  */
 int BSP_IIC_ReadRegs(uint8_t dev_addr_7bit, uint8_t reg, uint8_t * data, uint16_t len)
 {
-    uint16_t i;
-
-    if((BSP_IIC_IsAddressValid(dev_addr_7bit) == 0U) || (data == NULL) || (len == 0U)) {
-        return -1;
-    }
-
-    if(iic_initialized == 0U) {
-        BSP_IIC_Init();
-    }
-
-    // 先写入寄存器地址，再使用重复起始切到读方向，这是常见 I2C 寄存器读流程。
-    BSP_IIC_Start();
-    if(BSP_IIC_WriteAddress(dev_addr_7bit) == 0U) {
-        BSP_IIC_Stop();
-        return -2;
-    }
-    if(BSP_IIC_SendByte(reg) == 0U) {
-        BSP_IIC_Stop();
-        return -3;
-    }
-
-    BSP_IIC_Start();
-    if(BSP_IIC_ReadAddress(dev_addr_7bit) == 0U) {
-        BSP_IIC_Stop();
-        return -4;
-    }
-
-    for(i = 0U; i < len; i++) {
-        data[i] = BSP_IIC_ReceiveByte();
-        if((i + 1U) < len) {
-            BSP_IIC_Ack();
-        }
-        else {
-            BSP_IIC_NoAck();
-        }
-    }
-
-    BSP_IIC_Stop();
-    return 0;
+    return BSP_IIC_WriteRead(dev_addr_7bit, &reg, 1U, data, len);
 }
 
 /**

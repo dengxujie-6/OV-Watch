@@ -339,7 +339,7 @@
               <MiscControls></MiscControls>
               <Define>USE_HAL_DRIVER,STM32F411xE</Define>
               <Undefine></Undefine>
-              <IncludePath>../Core/Inc;../USER/HwAccess;../USER/Task/GUI_Task;../USER/Task/HardWare_init_task;../USER/Task/Key_Task;../USER/Task/PROM_Test;../USER/Task/Watchdog_Task;../USER/PageManagement;../USER/GUI_page;../USER/GUI_page/Menu;../USER/GUI_page/Common;../USER/GUI_page/Tools;../USER/GUI_page/Status;../USER/GUI_page/Diagnostics;../USER/FONTS;../USER/FreeRTOS_Debug;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../BSP/LCD;../Middlewares/Third_Party/FreeRTOS/Source/include;../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2;../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F;../Middlewares/Third_Party/lvgl_minimal_runtime;../Middlewares/Third_Party/lvgl_minimal_runtime/lvgl;../Middlewares/Third_Party/lvgl_minimal_runtime/lvgl/include;../Middlewares/Third_Party/lvgl_minimal_runtime/port;..\Middlewares\Third_Party\lvgl_minimal_runtime\lvgl\include\lvgl\draw;..\BSP\Key;..\BSP\Power;..\BSP\IIC;..\BSP\Watchdog;..\BSP\PROM</IncludePath>
+              <IncludePath>../Core/Inc;../USER/HwAccess;../USER/Task/GUI_Task;../USER/Task/HardWare_init_task;../USER/Task/Key_Task;../USER/Task/PROM_Test;../USER/Task/Watchdog_Task;../USER/PageManagement;../USER/GUI_page;../USER/GUI_page/Home;../USER/GUI_page/Menu;../USER/GUI_page/Common;../USER/GUI_page/Tools;../USER/GUI_page/Status;../USER/GUI_page/Diagnostics;../USER/FONTS;../USER/FreeRTOS_Debug;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../BSP/LCD;../Middlewares/Third_Party/FreeRTOS/Source/include;../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2;../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F;../Middlewares/Third_Party/lvgl_minimal_runtime;../Middlewares/Third_Party/lvgl_minimal_runtime/lvgl;../Middlewares/Third_Party/lvgl_minimal_runtime/lvgl/include;../Middlewares/Third_Party/lvgl_minimal_runtime/port;..\Middlewares\Third_Party\lvgl_minimal_runtime\lvgl\include\lvgl\draw;..\BSP\Key;..\BSP\Power;..\BSP\IIC;..\BSP\Watchdog;..\BSP\PROM</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -1485,6 +1485,41 @@
               <FileName>my_font_source_han_20.c</FileName>
               <FileType>1</FileType>
               <FilePath>../USER/FONTS/my_font_source_han_20.c</FilePath>
+            </File>
+            <File>
+              <FileName>my_font_source_han_10.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../USER/FONTS/my_font_source_han_10.c</FilePath>
+            </File>
+            <File>
+              <FileName>my_font_source_han_13.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../USER/FONTS/my_font_source_han_13.c</FilePath>
+            </File>
+            <File>
+              <FileName>my_font_source_han_18.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../USER/FONTS/my_font_source_han_18.c</FilePath>
+            </File>
+            <File>
+              <FileName>my_font_source_han_19.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../USER/FONTS/my_font_source_han_19.c</FilePath>
+            </File>
+            <File>
+              <FileName>my_font_source_han_38.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../USER/FONTS/my_font_source_han_38.c</FilePath>
+            </File>
+            <File>
+              <FileName>my_icon_fonts.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../USER/FONTS/my_icon_fonts.c</FilePath>
+            </File>
+            <File>
+              <FileName>home_page.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../USER/GUI_page/Home/home_page.c</FilePath>
             </File>
             <File>
               <FileName>menu_page.c</FileName>

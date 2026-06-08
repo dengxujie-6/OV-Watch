@@ -32,10 +32,10 @@ int PageManager_Push(const GUI_Page_t * page)
         return -3;
     }
 
-    if(top >= 0) {
+    if(top > 0) {
         const GUI_Page_t * current = page_stack[top];
 
-        // 离开当前页面时，只调用页面自己的 destroy，不处理页面内部对象。
+        // 栈底默认主页是常驻页面，离开时只切换 screen，不销毁其 LVGL 对象树。
         if((current != NULL) && (current->destroy != NULL)) {
             current->destroy();
         }
@@ -76,6 +76,7 @@ int PageManager_Pop(void)
     if((previous == NULL) || (previous->create == NULL)) {
         return -2;
     }
+    // 回到栈底默认主页时，create 只负责加载已保留的 screen。
 
     previous->create();
     return 0;

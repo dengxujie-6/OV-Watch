@@ -44,6 +44,25 @@ int BSP_IIC_Write(uint8_t dev_addr_7bit, const uint8_t * data, uint16_t len);
 int BSP_IIC_Read(uint8_t dev_addr_7bit, uint8_t * data, uint16_t len);
 
 /**
+ * @brief 先写入一段命令字节，再重复起始读取数据。
+ *
+ * 多数传感器读取寄存器时，需要先写寄存器地址或命令，再使用 repeated START
+ * 切换到读方向。本接口只负责总线时序，不假设具体传感器型号或寄存器含义。
+ *
+ * @param dev_addr_7bit I2C 从机 7 位地址，不包含读写位。
+ * @param tx_data 写阶段缓冲区，不能为空。
+ * @param tx_len 写阶段字节数，必须大于 0。
+ * @param rx_data 读阶段接收缓冲区，不能为空。
+ * @param rx_len 读阶段字节数，必须大于 0。
+ * @return 0 表示成功，负数表示参数非法或总线 NACK。
+ */
+int BSP_IIC_WriteRead(uint8_t dev_addr_7bit,
+                      const uint8_t * tx_data,
+                      uint16_t tx_len,
+                      uint8_t * rx_data,
+                      uint16_t rx_len);
+
+/**
  * @brief 写入 8 位寄存器地址的单字节寄存器。
  *
  * @param dev_addr_7bit I2C 从机 7 位地址，不包含读写位。

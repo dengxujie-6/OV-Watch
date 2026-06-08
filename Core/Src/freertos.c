@@ -39,6 +39,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define WATCHDOG_TASK_ENABLE 0U
 
 /* USER CODE END PD */
 
@@ -142,13 +143,20 @@ void MX_FREERTOS_Init(void) {
   keyTaskHandle = osThreadNew(Key_Task, NULL, &keyTask_attributes);
 
   /* creation of watchdogTask */
+#if (WATCHDOG_TASK_ENABLE != 0U)
   watchdogTaskHandle = osThreadNew(Watchdog_Task, NULL, &watchdogTask_attributes);
+#else
+  // 调试期间关闭外部看门狗任务，避免断点暂停时复位；恢复时将 WATCHDOG_TASK_ENABLE 改为 1U。
+  watchdogTaskHandle = NULL;
+#endif
 
   (void)FreeRTOS_Debug_RegisterTask((TaskHandle_t)defaultTaskHandle, defaultTask_attributes.name);
   (void)FreeRTOS_Debug_RegisterTask((TaskHandle_t)hardWareInitTaskHandle, hardWareInitTask_attributes.name);
   (void)FreeRTOS_Debug_RegisterTask((TaskHandle_t)lvglTaskHandle, lvglTask_attributes.name);
   (void)FreeRTOS_Debug_RegisterTask((TaskHandle_t)keyTaskHandle, keyTask_attributes.name);
+#if (WATCHDOG_TASK_ENABLE != 0U)
   (void)FreeRTOS_Debug_RegisterTask((TaskHandle_t)watchdogTaskHandle, watchdogTask_attributes.name);
+#endif
   (void)FreeRTOS_Debug_CreateMonitorTask();
   /* USER CODE END RTOS_THREADS */
 

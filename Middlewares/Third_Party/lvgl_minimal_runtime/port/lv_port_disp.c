@@ -4,7 +4,7 @@
 #include "hwaccess.h"
 #include "st7789v.h"
 
-#define LV_PORT_DISP_BUFFER_LINES    40U
+#define LV_PORT_DISP_BUFFER_LINES    (LCD_HEIGHT / 10U)
 #define LV_PORT_DISP_Y_OFFSET        20U
 #define LV_PORT_DISP_DMA_TIMEOUT_MS  100U
 

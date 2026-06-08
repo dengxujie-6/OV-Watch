@@ -144,13 +144,27 @@ charging_page_t * charging_page_create(void)
     charge_icon = lv_label_create(page->root);
     lv_label_set_text(charge_icon, LV_SYMBOL_CHARGE);
     lv_obj_set_style_text_color(charge_icon, lv_color_hex(0x2cff78), 0);
-    lv_obj_set_style_text_font(charge_icon, &lv_font_montserrat_48, 0);
+    // 使用默认符号字体缩放显示，避免引入整套 montserrat_48 大字体。
+    lv_obj_set_style_text_font(charge_icon, LV_FONT_DEFAULT, 0);
+    lv_obj_set_style_transform_zoom(charge_icon, 878, 0);
+    // 缩放中心放在 label 中心，保证图标视觉中心仍与圆环中心对齐。
+    lv_obj_update_layout(charge_icon);
+    lv_obj_set_style_transform_pivot_x(charge_icon, lv_obj_get_width(charge_icon) / 2, 0);
+    lv_obj_set_style_transform_pivot_y(charge_icon, lv_obj_get_height(charge_icon) / 2, 0);
     lv_obj_align(charge_icon, LV_ALIGN_CENTER, 0, -54);
 
     page->percent_label = lv_label_create(page->root);
+    lv_obj_set_size(page->percent_label, 128, 58);
     lv_label_set_text(page->percent_label, "--%");
+    lv_label_set_long_mode(page->percent_label, LV_LABEL_LONG_CLIP);
     lv_obj_set_style_text_color(page->percent_label, lv_color_white(), 0);
-    lv_obj_set_style_text_font(page->percent_label, &lv_font_montserrat_48, 0);
+    // 使用自定义 24px 字体缩放到约 48px，减少 Flash 中的大字体资源。
+    lv_obj_set_style_text_font(page->percent_label, &my_font_source_han_20, 0);
+    lv_obj_set_style_text_align(page->percent_label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_transform_zoom(page->percent_label, 512, 0);
+    // 固定百分比 label 的缩放中心，避免 0%/100% 宽度变化导致视觉偏移。
+    lv_obj_set_style_transform_pivot_x(page->percent_label, 64, 0);
+    lv_obj_set_style_transform_pivot_y(page->percent_label, 29, 0);
     lv_obj_align(page->percent_label, LV_ALIGN_CENTER, 0, 2);
 
     page->status_label = lv_label_create(page->root);

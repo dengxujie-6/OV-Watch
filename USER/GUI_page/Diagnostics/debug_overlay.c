@@ -6,19 +6,24 @@
 #define DEBUG_OVERLAY_UPDATE_MS      1000U
 #define DEBUG_OVERLAY_BATTERY_MIN_MV 2750U
 #define DEBUG_OVERLAY_BATTERY_MAX_MV 4200U
+#define DEBUG_OVERLAY_TOUCH_W        128
+#define DEBUG_OVERLAY_TOUCH_H        44
 
 typedef struct {
+    lv_obj_t * touch_area;     /**< Debug-only transparent click area for toggling the overlay. */
     lv_obj_t * label;          /**< 挂在 top layer 的调试文本对象。 */
     lv_timer_t * timer;        /**< 周期刷新 FPS 和电量的 LVGL 定时器。 */
     uint32_t refr_cnt;         /**< 上一个统计周期内的刷新完成次数。 */
     uint32_t last_tick;        /**< 上一次生成统计结果的 LVGL tick。 */
     uint32_t fps;              /**< 最近一次计算得到的 FPS。 */
+    uint8_t hidden;            /**< 1 when the text is hidden; touch_area remains clickable. */
 } DebugOverlay_t;
 
 static DebugOverlay_t s_debug_overlay;
 
 static void DebugOverlay_DisplayEventCb(lv_event_t * e);
 static void DebugOverlay_TimerCb(lv_timer_t * timer);
+static void DebugOverlay_TouchEventCb(lv_event_t * e);
 static uint8_t DebugOverlay_ReadBatteryPercent(uint8_t * valid);
 static void DebugOverlay_RefreshLabel(void);
 static void DebugOverlay_ReadLvMem(uint32_t * total_bytes, uint32_t * used_bytes);
@@ -61,6 +66,27 @@ void DebugOverlay_Init(void)
     lv_obj_set_style_pad_bottom(s_debug_overlay.label, 2, 0);
     lv_obj_align(s_debug_overlay.label, LV_ALIGN_TOP_RIGHT, -4, 4);
 
+    /*
+     * Debug-only transparent hit area.
+     * It stays clickable when the FPS label is hidden, so this block can be
+     * removed together with DebugOverlay_TouchEventCb after debugging.
+     */
+    s_debug_overlay.touch_area = lv_obj_create(top_layer);
+    if(s_debug_overlay.touch_area != NULL) {
+        lv_obj_remove_style_all(s_debug_overlay.touch_area);
+        lv_obj_set_size(s_debug_overlay.touch_area,
+                        DEBUG_OVERLAY_TOUCH_W,
+                        DEBUG_OVERLAY_TOUCH_H);
+        lv_obj_align(s_debug_overlay.touch_area, LV_ALIGN_TOP_RIGHT, -4, 4);
+        lv_obj_add_flag(s_debug_overlay.touch_area, LV_OBJ_FLAG_CLICKABLE);
+        lv_obj_clear_flag(s_debug_overlay.touch_area, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_add_event_cb(s_debug_overlay.touch_area,
+                            DebugOverlay_TouchEventCb,
+                            LV_EVENT_CLICKED,
+                            &s_debug_overlay);
+        lv_obj_move_foreground(s_debug_overlay.touch_area);
+    }
+
     s_debug_overlay.last_tick = lv_tick_get();
     s_debug_overlay.timer = lv_timer_create(DebugOverlay_TimerCb,
                                             DEBUG_OVERLAY_UPDATE_MS,
@@ -89,6 +115,30 @@ static void DebugOverlay_DisplayEventCb(lv_event_t * e)
 /**
  * @brief 每秒计算一次 FPS 并刷新电量显示。
  */
+/**
+ * @brief Debug-only click handler that toggles the FPS overlay text.
+ */
+static void DebugOverlay_TouchEventCb(lv_event_t * e)
+{
+    DebugOverlay_t * overlay = (DebugOverlay_t *)lv_event_get_user_data(e);
+
+    if((overlay == NULL) || (overlay->label == NULL) ||
+       (lv_event_get_code(e) != LV_EVENT_CLICKED)) {
+        return;
+    }
+
+    overlay->hidden = (overlay->hidden == 0U) ? 1U : 0U;
+    if(overlay->hidden != 0U) {
+        lv_obj_add_flag(overlay->label, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_clear_flag(overlay->label, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_move_foreground(overlay->label);
+        if(overlay->touch_area != NULL) {
+            lv_obj_move_foreground(overlay->touch_area);
+        }
+    }
+}
+
 static void DebugOverlay_TimerCb(lv_timer_t * timer)
 {
     DebugOverlay_t * overlay = (DebugOverlay_t *)lv_timer_get_user_data(timer);
