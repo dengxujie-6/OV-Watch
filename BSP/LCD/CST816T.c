@@ -136,8 +136,6 @@ int CST816T_ReadTouch(CST816T_TouchPoint_t * point)
 
     memset(point, 0, sizeof(*point));
 
-    (void)CST816T_ReadRegs(0x00U, (uint8_t *)CST816T_DebugRegs, sizeof(CST816T_DebugRegs));
-
     CST816T_DebugLastError = CST816T_ReadRegs(CST816T_REG_GESTURE_ID, buf, sizeof(buf));
     if(CST816T_DebugLastError != 0) {
         CST816T_DebugPressed = 0U;

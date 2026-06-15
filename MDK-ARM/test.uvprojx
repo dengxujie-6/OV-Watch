@@ -48,7 +48,7 @@
             <NotGenerated>0</NotGenerated>
             <InvalidFlash>1</InvalidFlash>
           </TargetStatus>
-          <OutputDirectory>test\</OutputDirectory>
+          <OutputDirectory>.\test\</OutputDirectory>
           <OutputName>test</OutputName>
           <CreateExecutable>1</CreateExecutable>
           <CreateLib>0</CreateLib>
@@ -83,7 +83,7 @@
             <RunUserProg1>0</RunUserProg1>
             <RunUserProg2>1</RunUserProg2>
             <UserProg1Name></UserProg1Name>
-            <UserProg2Name></UserProg2Name>
+            <UserProg2Name>fromelf --text -a -c --output=test\AAA123.dis  .\test\test.axf</UserProg2Name>
             <UserProg1Dos16Mode>0</UserProg1Dos16Mode>
             <UserProg2Dos16Mode>0</UserProg2Dos16Mode>
             <nStopA1X>0</nStopA1X>
@@ -339,7 +339,7 @@
               <MiscControls></MiscControls>
               <Define>USE_HAL_DRIVER,STM32F411xE</Define>
               <Undefine></Undefine>
-              <IncludePath>../Core/Inc;../USER/HwAccess;../USER/Task/GUI_Task;../USER/Task/HardWare_init_task;../USER/Task/Key_Task;../USER/Task/PROM_Test;../USER/Task/Watchdog_Task;../USER/PageManagement;../USER/GUI_page;../USER/GUI_page/Home;../USER/GUI_page/Menu;../USER/GUI_page/Common;../USER/GUI_page/Tools;../USER/GUI_page/Status;../USER/GUI_page/Diagnostics;../USER/FONTS;../USER/FreeRTOS_Debug;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../BSP/LCD;../Middlewares/Third_Party/FreeRTOS/Source/include;../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2;../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F;../Middlewares/Third_Party/lvgl_minimal_runtime;../Middlewares/Third_Party/lvgl_minimal_runtime/lvgl;../Middlewares/Third_Party/lvgl_minimal_runtime/lvgl/include;../Middlewares/Third_Party/lvgl_minimal_runtime/port;..\Middlewares\Third_Party\lvgl_minimal_runtime\lvgl\include\lvgl\draw;..\BSP\Key;..\BSP\Power;..\BSP\IIC;..\BSP\Watchdog;..\BSP\PROM</IncludePath>
+              <IncludePath>../Core/Inc;../USER/HwAccess;../USER/Task/GUI_Task;../USER/Task/HardWare_init_task;../USER/Task/Key_Task;../USER/Task/PROM_Test;../USER/Task/Sensor_Task;../USER/Task/Watchdog_Task;../USER/PageManagement;../USER/GUI_page;../USER/GUI_page/Home;../USER/GUI_page/Menu;../USER/GUI_page/Common;../USER/GUI_page/Tools;../USER/GUI_page/Status;../USER/GUI_page/Diagnostics;../USER/FONTS;../USER/FreeRTOS_Debug;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../BSP/LCD;../Middlewares/Third_Party/FreeRTOS/Source/include;../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2;../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F;../Middlewares/Third_Party/lvgl_minimal_runtime;../Middlewares/Third_Party/lvgl_minimal_runtime/lvgl;../Middlewares/Third_Party/lvgl_minimal_runtime/lvgl/include;../Middlewares/Third_Party/lvgl_minimal_runtime/port;..\Middlewares\Third_Party\lvgl_minimal_runtime\lvgl\include\lvgl\draw;..\BSP\Key;..\BSP\Power;..\BSP\IIC;..\BSP\Watchdog;..\BSP\PROM;..\BSP\BlueTooth</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -427,6 +427,11 @@
               <FileName>bsp_prom.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\BSP\PROM\bsp_prom.c</FilePath>
+            </File>
+            <File>
+              <FileName>bsp_bluetooth.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\BSP\BlueTooth\bsp_bluetooth.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -796,6 +801,11 @@
                   </Cads>
                 </FileArmAds>
               </FileOption>
+            </File>
+            <File>
+              <FileName>stm32f4xx_hal_uart.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_uart.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -1470,6 +1480,11 @@
               <FileName>Key_task.c</FileName>
               <FileType>1</FileType>
               <FilePath>../USER/Task/Key_Task/Key_task.c</FilePath>
+            </File>
+            <File>
+              <FileName>Sensor_Task.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../USER/Task/Sensor_Task/Sensor_Task.c</FilePath>
             </File>
             <File>
               <FileName>Watchdog_Task.c</FileName>

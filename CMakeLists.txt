@@ -60,6 +60,7 @@ set(HAL_SOURCES
     Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_spi.c
     Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim.c
     Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim_ex.c
+    Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_uart.c
 )
 
 # BSP 和 USER 目录是项目自有代码，使用 CONFIGURE_DEPENDS 让新增 .c 文件触发重新配置。
@@ -126,6 +127,7 @@ target_include_directories(${TARGET_NAME} PRIVATE
     USER/Task/HardWare_init_task
     USER/Task/Key_Task
     USER/Task/PROM_Test
+    USER/Task/Sensor_Task
     USER/Task/Watchdog_Task
     USER/PageManagement
     USER/GUI_page
@@ -147,6 +149,7 @@ target_include_directories(${TARGET_NAME} PRIVATE
     BSP/IIC
     BSP/Watchdog
     BSP/PROM
+    BSP/BlueTooth
     Middlewares/Third_Party/FreeRTOS/Source/include
     Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2
     "${FREERTOS_GCC_PORT_DIR}"

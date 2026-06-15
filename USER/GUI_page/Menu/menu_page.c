@@ -53,6 +53,47 @@ static menu_item_ctx_t s_menu_item_ctx[MENU_ITEM_COUNT];
 static menu_page_t * s_menu_page;
 static int32_t s_menu_saved_scroll_y;
 static bool s_menu_saved_scroll_valid;
+static const char * s_menu_pending_title;
+
+/**
+ * @brief 在 LVGL 事件回调返回后再执行页面跳转。
+ *
+ * 触摸点击事件处理中直接销毁当前菜单 screen，会让 LVGL 输入设备仍持有刚被删除的
+ * 按钮/列表状态。这里使用 lv_async_call() 延后到当前事件栈结束后再切页，避免触摸释放
+ * 与页面销毁交织在一起。
+ */
+static void menu_page_async_push_cb(void * user_data)
+{
+    const GUI_Page_t * page = (const GUI_Page_t *)user_data;
+
+    if(page == NULL) {
+        return;
+    }
+
+    if(page == &TitlePage) {
+        title_page_set_title(s_menu_pending_title);
+    }
+
+    s_menu_pending_title = NULL;
+    (void)PageManager_Push(page);
+}
+
+static void menu_page_request_push(const GUI_Page_t * page, const char * title)
+{
+    if(page == NULL) {
+        return;
+    }
+
+    s_menu_pending_title = title;
+
+    if(lv_async_call(menu_page_async_push_cb, (void *)page) != LV_RESULT_OK) {
+        s_menu_pending_title = NULL;
+        if(page == &TitlePage) {
+            title_page_set_title(title);
+        }
+        (void)PageManager_Push(page);
+    }
+}
 
 static void menu_item_effect_set(menu_item_ctx_t * ctx, bool on)
 {
@@ -108,7 +149,7 @@ static void menu_item_event_cb(lv_event_t * e)
         }
     }
     else if(code == LV_EVENT_CLICKED) {
-        const char * title = (ctx && ctx->title_label) ? lv_label_get_text(ctx->title_label) : NULL;
+        const char * title = ctx ? ctx->title : NULL;
 
         if(ctx && ctx->owner) {
             ctx->owner->last_clicked_btn = lv_event_get_target(e);
@@ -124,20 +165,19 @@ static void menu_item_event_cb(lv_event_t * e)
         }
 
         if(strcmp(title, "日历") == 0) {
-            (void)PageManager_Push(&CalendarPage);
+            menu_page_request_push(&CalendarPage, NULL);
         }
         else if(strcmp(title, "计算器") == 0) {
-            (void)PageManager_Push(&CalculatorPage);
+            menu_page_request_push(&CalculatorPage, NULL);
         }
         else if(strcmp(title, "秒表") == 0) {
-            (void)PageManager_Push(&StopwatchPage);
+            menu_page_request_push(&StopwatchPage, NULL);
         }
         else if(strcmp(title, "动画") == 0) {
-            (void)PageManager_Push(&AnimationPage);
+            menu_page_request_push(&AnimationPage, NULL);
         }
         else {
-            title_page_set_title(title);
-            (void)PageManager_Push(&TitlePage);
+            menu_page_request_push(&TitlePage, title);
         }
     }
     else if(code == LV_EVENT_DELETE) {

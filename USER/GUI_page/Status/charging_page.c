@@ -17,8 +17,6 @@ extern const lv_font_t my_font_source_han_20;
 #define CHARGING_PAGE_REFRESH_MS 1000U
 #define CHARGING_RING_SIZE       198
 #define CHARGING_RING_WIDTH      5
-#define CHARGING_BATTERY_MIN_MV  2750U
-#define CHARGING_BATTERY_MAX_MV  4200U
 
 /**
  * @brief 充电检测页面对象。
@@ -47,24 +45,13 @@ static void charging_page_key_cb(lv_event_t * e)
 
 static uint8_t charging_page_read_percent(void)
 {
-    uint16_t voltage_mv;
-
-    if(HwAccess.power.get_battery_voltage_mv == NULL) {
+    if((HwAccess.power.is_battery_valid == NULL) ||
+       (HwAccess.power.get_battery_percent == NULL) ||
+       (HwAccess.power.is_battery_valid() == 0U)) {
         return 0U;
     }
 
-    voltage_mv = HwAccess.power.get_battery_voltage_mv();
-    if(voltage_mv <= CHARGING_BATTERY_MIN_MV) {
-        return 0U;
-    }
-
-    if(voltage_mv >= CHARGING_BATTERY_MAX_MV) {
-        return 100U;
-    }
-
-    // 页面只做显示换算，GPIO/ADC 细节仍由 HwAccess/Power/BSP 分层封装。
-    return (uint8_t)(((uint32_t)(voltage_mv - CHARGING_BATTERY_MIN_MV) * 100U) /
-                     (CHARGING_BATTERY_MAX_MV - CHARGING_BATTERY_MIN_MV));
+    return HwAccess.power.get_battery_percent();
 }
 
 static void charging_page_update(charging_page_t * page)

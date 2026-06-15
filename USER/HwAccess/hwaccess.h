@@ -49,7 +49,10 @@ typedef struct Powerstruct_typedef
 {
     void (*open)(void);  /**< 打开并保持系统电源。 */
     uint8_t (*is_charging)(void);  /**< 读取充电检测状态，1 表示高电平有效。 */
+    void (*update_battery_cache)(void);  /**< 采样一次电池电压并刷新缓存，由传感器任务周期调用。 */
     uint16_t (*get_battery_voltage_mv)(void);  /**< 读取电池电压检测值，单位 mV。 */
+    uint8_t (*get_battery_percent)(void);  /**< 从缓存读取电池电量百分比，范围 0~100。 */
+    uint8_t (*is_battery_valid)(void);  /**< 读取电池缓存是否已经有过有效采样。 */
 } obj_Power;
 
 /**
@@ -81,6 +84,25 @@ typedef struct Promstruct_typedef
 } obj_Prom;
 
 /**
+ * @brief 蓝牙模块操作表。
+ *
+ * 上层只表达“打开模块”和“通过蓝牙串口收发数据”的需求，不暴露 USART1、
+ * PA8/PA9/PA10 或 HAL UART 句柄等底层细节。
+ */
+typedef struct Bluetoothstruct_typedef
+{
+    void (*init)(void);  /**< 初始化蓝牙 EN 引脚和 USART1。*/
+    void (*enable)(void);  /**< 拉高 BlueTooth_EN，打开蓝牙模块。*/
+    void (*disable)(void);  /**< 拉低 BlueTooth_EN，关闭蓝牙模块。*/
+    uint8_t (*is_enabled)(void);  /**< 读取 BlueTooth_EN 当前输出状态。*/
+    int (*send)(const uint8_t * data, uint16_t len, uint32_t timeout_ms);  /**< 阻塞发送数据。*/
+    int (*send_dma)(const uint8_t * data, uint16_t len);  /**< 非阻塞 DMA 发送，完成由 DMA 中断标记。 */
+    uint8_t (*is_tx_busy)(void);  /**< 查询 DMA 发送是否仍在进行。 */
+    uint8_t (*take_tx_done)(void);  /**< 读取并清除 DMA 发送完成标志。 */
+    int (*receive)(uint8_t * data, uint16_t len, uint32_t timeout_ms);  /**< 阻塞接收数据。*/
+} obj_BlueTooth;
+
+/**
  * @brief 顶层硬件访问对象。
  *
  * 后续新增硬件模块时，应以模块操作表的形式加入这里，任务层和 UI 层统一通过该对象访问硬件。
@@ -92,6 +114,7 @@ typedef struct hwaccess_typedef
     obj_Power power;  /**< 电源与充电状态访问接口。 */
     obj_Watchdog watchdog;  /**< 外部硬件看门狗操作表。 */
     obj_Prom prom;  /**< 外部 PROM 读写操作表。 */
+    obj_BlueTooth bluetooth;  /**< 蓝牙模块操作表。 */
 } obj_HwAccess;
 
 /**

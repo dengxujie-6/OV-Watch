@@ -10,6 +10,7 @@
 
 #include <string.h>
 
+#include "hwaccess.h"
 #include "menu_page.h"
 #include "my_icon_fonts.h"
 
@@ -36,6 +37,7 @@ extern const lv_font_t my_font_source_han_38;
 #define HOME_MENU_DRAG_TIMER_MS 4U
 // 慢速滑动时触摸芯片可能短暂报松手，连续确认后才触发回弹/进入。
 #define HOME_MENU_RELEASE_CONFIRM_COUNT 3U
+#define HOME_BATTERY_REFRESH_MS 1000U
 
 // 主页配色集中放在这里，后续微调视觉风格时优先改这些颜色。
 #define HOME_COLOR_BG        0x02070c
@@ -57,8 +59,11 @@ struct home_page {
     lv_obj_t * root;        /**< 页面根 screen，归本页面对象所有。 */
     lv_obj_t * step_arc;    /**< 步数圆环，root 删除时自动删除。 */
     lv_obj_t * step_label;  /**< 步数字符，root 删除时自动删除。 */
+    lv_obj_t * battery_level; /**< 顶部电池电量条，root 删除时自动删除。 */
+    lv_obj_t * battery_label; /**< 顶部电池百分比文字，root 删除时自动删除。 */
     lv_obj_t * menu_preview; /**< 左划跟手阶段的临时菜单预览层，root 删除时自动删除。 */
     lv_timer_t * drag_timer; /**< 主页激活时的触摸轮询定时器，由本页面删除。 */
+    lv_timer_t * battery_timer; /**< 低频刷新电池缓存显示的 LVGL 定时器。 */
     lv_point_t press_point; /**< 本次触摸按下坐标，用于计算横向拖动距离。 */
     int32_t drag_x;         /**< 当前左划距离，单位为屏幕像素。 */
     uint8_t release_count;  /**< 连续检测到松手的次数，用于过滤触摸采样抖动。 */
@@ -86,6 +91,8 @@ static const uint32_t s_home_menu_preview_icon_colors[] = {
 static lv_indev_t * home_pointer_indev_get(void);
 static void home_menu_drag_poll(home_page_t * page, lv_indev_t * indev);
 static void home_menu_drag_timer_cb(lv_timer_t * timer);
+static void home_battery_timer_cb(lv_timer_t * timer);
+static void home_battery_update(home_page_t * page);
 
 static void home_page_key_cb(lv_event_t * e)
 {
@@ -340,6 +347,39 @@ static void home_menu_drag_timer_cb(lv_timer_t * timer)
     home_menu_drag_poll(page, indev);
 }
 
+static void home_battery_update(home_page_t * page)
+{
+    uint8_t percent = 0U;
+    int32_t level_w;
+
+    if((page == NULL) || (page->battery_level == NULL) || (page->battery_label == NULL)) {
+        return;
+    }
+
+    if((HwAccess.power.is_battery_valid != NULL) &&
+       (HwAccess.power.get_battery_percent != NULL) &&
+       (HwAccess.power.is_battery_valid() != 0U)) {
+        percent = HwAccess.power.get_battery_percent();
+        if(percent > 100U) {
+            percent = 100U;
+        }
+        lv_label_set_text_fmt(page->battery_label, "%u%%", percent);
+    } else {
+        lv_label_set_text(page->battery_label, "--%");
+    }
+
+    // 电量条只映射缓存百分比，真实 ADC 采样由 Sensor_Task 周期刷新。
+    level_w = (int32_t)(((uint32_t)percent * 22U) / 100U);
+    lv_obj_set_width(page->battery_level, level_w);
+}
+
+static void home_battery_timer_cb(lv_timer_t * timer)
+{
+    home_page_t * page = (home_page_t *)lv_timer_get_user_data(timer);
+
+    home_battery_update(page);
+}
+
 static lv_obj_t * home_label_create(lv_obj_t * parent, const char * text,
                                     int32_t x, int32_t y, int32_t w, int32_t h,
                                     const lv_font_t * font, lv_color_t color,
@@ -394,19 +434,21 @@ static void home_top_bar_create(home_page_t * page)
     // lv_obj_set_style_bg_color(cap, lv_color_hex(HOME_COLOR_WHITE), 0);
     // lv_obj_set_style_bg_opa(cap, LV_OPA_COVER, 0);
 
-    lv_obj_t * level = lv_obj_create(battery);
-    lv_obj_remove_style_all(level);
-    // 电池内部绿色电量条，宽度 21 表示约 85%。
-    lv_obj_set_pos(level, 0, -1);
-    lv_obj_set_size(level, 5, 12);
-    lv_obj_set_style_radius(level, 2, 0);
-    lv_obj_set_style_bg_color(level, lv_color_hex(HOME_COLOR_GREEN), 0);
-    lv_obj_set_style_bg_opa(level, LV_OPA_COVER, 0);
+    page->battery_level = lv_obj_create(battery);
+    lv_obj_remove_style_all(page->battery_level);
+    // 电池内部绿色电量条宽度由缓存百分比刷新，避免主页直接触发 ADC 采样。
+    lv_obj_set_pos(page->battery_level, 1, 1);
+    lv_obj_set_size(page->battery_level, 0, 9);
+    lv_obj_set_style_radius(page->battery_level, 2, 0);
+    lv_obj_set_style_bg_color(page->battery_level, lv_color_hex(HOME_COLOR_GREEN), 0);
+    lv_obj_set_style_bg_opa(page->battery_level, LV_OPA_COVER, 0);
 
     // 电量文字：使用新增 18 号字库直接绘制。
-    (void)home_label_create(page->root, "85%", 180, 6 + HOME_UI_Y_OFFSET, 44, 30,
-                            &my_font_source_han_18, lv_color_hex(HOME_COLOR_WHITE),
-                            LV_TEXT_ALIGN_LEFT);
+    page->battery_label = home_label_create(page->root, "--%", 180, 6 + HOME_UI_Y_OFFSET, 44, 30,
+                                            &my_font_source_han_18,
+                                            lv_color_hex(HOME_COLOR_WHITE),
+                                            LV_TEXT_ALIGN_LEFT);
+    home_battery_update(page);
 }
 
 static void home_steps_panel_create(home_page_t * page)
@@ -562,6 +604,9 @@ home_page_t * home_page_create(void)
     page->drag_timer = lv_timer_create(home_menu_drag_timer_cb,
                                        HOME_MENU_DRAG_TIMER_MS,
                                        page);
+    page->battery_timer = lv_timer_create(home_battery_timer_cb,
+                                          HOME_BATTERY_REFRESH_MS,
+                                          page);
 
     return page;
 }
@@ -572,6 +617,10 @@ void home_page_destroy(home_page_t * page)
     if(page->drag_timer) {
         lv_timer_del(page->drag_timer);
         page->drag_timer = NULL;
+    }
+    if(page->battery_timer) {
+        lv_timer_del(page->battery_timer);
+        page->battery_timer = NULL;
     }
     home_menu_preview_delete(page);
     if(page->root) lv_obj_del(page->root);

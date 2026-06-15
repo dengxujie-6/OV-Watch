@@ -1,5 +1,11 @@
 #include "freertos_debug.h"
 #include "cmsis_os2.h"
+#include "hwaccess.h"
+
+#define FREERTOS_IDLE_REPORT_PERIOD_MS 2000U
+#define FREERTOS_IDLE_REPORT_BUFFER_SIZE 768U
+
+static uint16_t FreeRTOS_Debug_BuildIdleReport(char *buffer, uint16_t size);
 
 #if (FREERTOS_DEBUG_ENABLE != 0U)
 volatile TaskHandle_t FreeRTOS_DebugStackOverflowTask;
@@ -17,6 +23,7 @@ const osThreadAttr_t FreeRTOS_DebugMonitorTask_attributes = {
 };
 
 static void FreeRTOS_Debug_UpdateStackMonitor(void);
+static void FreeRTOS_Debug_ReportTaskList(void);
 
 static void FreeRTOS_DebugMonitorTask(void *argument)
 {
@@ -24,6 +31,7 @@ static void FreeRTOS_DebugMonitorTask(void *argument)
 
     for(;;) {
         FreeRTOS_Debug_UpdateStackMonitor();
+        FreeRTOS_Debug_ReportTaskList();
         osDelay(FREERTOS_DEBUG_MONITOR_PERIOD_MS);
     }
 }
@@ -84,6 +92,42 @@ static void FreeRTOS_Debug_UpdateStackMonitor(void)
 }
 
 /**
+ * @brief 在低优先级监测任务中周期输出 FreeRTOS 任务列表。
+ *
+ * vTaskList() 会遍历内核任务控制块，串口发送也会占用 DMA 资源；这些诊断动作不放在
+ * 默认任务或空闲钩子中，避免影响普通应用调度与 Idle Hook 的轻量性。
+ */
+static void FreeRTOS_Debug_ReportTaskList(void)
+{
+#if (configUSE_TRACE_FACILITY == 1)
+    static TickType_t last_report_tick;
+    static char report_buffer[FREERTOS_IDLE_REPORT_BUFFER_SIZE];
+    TickType_t now_tick;
+    uint16_t report_len;
+
+    now_tick = xTaskGetTickCount();
+    if((now_tick - last_report_tick) < pdMS_TO_TICKS(FREERTOS_IDLE_REPORT_PERIOD_MS)) {
+        return;
+    }
+
+    if((HwAccess.bluetooth.is_enabled == NULL) ||
+       (HwAccess.bluetooth.is_enabled() == 0U) ||
+       (HwAccess.bluetooth.is_tx_busy == NULL) ||
+       (HwAccess.bluetooth.send_dma == NULL) ||
+       (HwAccess.bluetooth.is_tx_busy() != 0U)) {
+        return;
+    }
+
+    last_report_tick = now_tick;
+    report_len = FreeRTOS_Debug_BuildIdleReport(report_buffer,
+                                                (uint16_t)sizeof(report_buffer));
+    if(report_len != 0U) {
+        (void)HwAccess.bluetooth.send_dma((const uint8_t *)report_buffer, report_len);
+    }
+#endif
+}
+
+/**
  * @brief 创建 FreeRTOS 栈监控任务。
  * @retval 监控任务句柄，创建失败时返回 NULL。
  */
@@ -120,4 +164,40 @@ void vApplicationStackOverflowHook(TaskHandle_t xTask, char *pcTaskName)
     taskDISABLE_INTERRUPTS();
     for(;;) {
     }
+}
+
+/**
+ * @brief FreeRTOS 空闲任务钩子。
+ *
+ * 任务列表输出已经迁移到 freertosDebug 低优先级监测任务，Idle Hook 保持空闲。
+ */
+void vApplicationIdleHook(void)
+{
+}
+
+/**
+ * @brief 构建 FreeRTOS 任务列表串口报告。
+ *
+ * @param buffer 输出缓冲区，调用者持有，DMA 发送完成前必须保持有效。
+ * @param size 缓冲区字节数。
+ * @return 实际要发送的字节数，不含字符串结尾零。
+ */
+static uint16_t FreeRTOS_Debug_BuildIdleReport(char *buffer, uint16_t size)
+{
+    uint16_t offset = 0U;
+
+    if((buffer == NULL) || (size < 2U)) {
+        return 0U;
+    }
+
+    buffer[0] = '\0';
+
+    // vTaskList() 输出格式：任务名、状态、优先级、栈高水位和任务编号。
+    vTaskList(buffer);
+
+    while((offset < (size - 1U)) && (buffer[offset] != '\0')) {
+        offset++;
+    }
+
+    return offset;
 }

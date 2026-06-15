@@ -4,8 +4,6 @@
 #include "lvgl.h"
 
 #define DEBUG_OVERLAY_UPDATE_MS      1000U
-#define DEBUG_OVERLAY_BATTERY_MIN_MV 2750U
-#define DEBUG_OVERLAY_BATTERY_MAX_MV 4200U
 #define DEBUG_OVERLAY_TOUCH_W        128
 #define DEBUG_OVERLAY_TOUCH_H        44
 
@@ -166,36 +164,20 @@ static void DebugOverlay_TimerCb(lv_timer_t * timer)
  */
 static uint8_t DebugOverlay_ReadBatteryPercent(uint8_t * valid)
 {
-    uint16_t voltage_mv;
-
     if(valid == NULL) {
         return 0U;
     }
 
     *valid = 0U;
 
-    if(HwAccess.power.get_battery_voltage_mv == NULL) {
-        return 0U;
-    }
-
-    voltage_mv = HwAccess.power.get_battery_voltage_mv();
-    if(voltage_mv == 0U) {
+    if((HwAccess.power.is_battery_valid == NULL) ||
+       (HwAccess.power.get_battery_percent == NULL) ||
+       (HwAccess.power.is_battery_valid() == 0U)) {
         return 0U;
     }
 
     *valid = 1U;
-
-    if(voltage_mv <= DEBUG_OVERLAY_BATTERY_MIN_MV) {
-        return 0U;
-    }
-
-    if(voltage_mv >= DEBUG_OVERLAY_BATTERY_MAX_MV) {
-        return 100U;
-    }
-
-    // 调试显示使用线性估算，真实采样和分压换算仍由 BSP Power 模块完成。
-    return (uint8_t)(((uint32_t)(voltage_mv - DEBUG_OVERLAY_BATTERY_MIN_MV) * 100U) /
-                     (DEBUG_OVERLAY_BATTERY_MAX_MV - DEBUG_OVERLAY_BATTERY_MIN_MV));
+    return HwAccess.power.get_battery_percent();
 }
 
 /**

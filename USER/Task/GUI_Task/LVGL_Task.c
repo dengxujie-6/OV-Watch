@@ -13,6 +13,7 @@
 #define LVGL_MEM_MONITOR_PERIOD_MS 200U
 
 static uint8_t lvgl_task_screen_on = 1U;
+static volatile uint32_t lvgl_task_heartbeat_tick;
 
 static void LVGL_Task_HandleKeyEvents(void);
 static void LVGL_Task_UpdateMemMonitor(void);
@@ -64,8 +65,22 @@ void LVGL_Task(void *argument)
         // 周期执行 LVGL 定时器处理函数，驱动动画、输入和刷新流程。
         (void)lv_timer_handler();
         LVGL_Task_UpdateMemMonitor();
+        lvgl_task_heartbeat_tick = osKernelGetTickCount();
         osDelay(LVGL_TASK_DELAY_MS);
     }
+}
+
+/**
+ * @brief 读取 LVGL 任务最近一次完成主循环处理的 RTOS tick。
+ *
+ * 看门狗任务通过该心跳判断 GUI/LVGL 主循环是否仍在推进；该函数只读取
+ * 32 位 volatile 值，不调用 LVGL API，可由普通任务安全调用。
+ *
+ * @return 最近一次心跳 tick；返回 0 表示 LVGL 任务尚未完成第一次循环。
+ */
+uint32_t LVGL_Task_GetHeartbeatTick(void)
+{
+    return lvgl_task_heartbeat_tick;
 }
 
 /**
