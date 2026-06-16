@@ -339,7 +339,7 @@
               <MiscControls></MiscControls>
               <Define>USE_HAL_DRIVER,STM32F411xE</Define>
               <Undefine></Undefine>
-              <IncludePath>../Core/Inc;../USER/HwAccess;../USER/Task/GUI_Task;../USER/Task/HardWare_init_task;../USER/Task/Key_Task;../USER/Task/PROM_Test;../USER/Task/Sensor_Task;../USER/Task/Watchdog_Task;../USER/PageManagement;../USER/GUI_page;../USER/GUI_page/Home;../USER/GUI_page/Menu;../USER/GUI_page/Common;../USER/GUI_page/Tools;../USER/GUI_page/Status;../USER/GUI_page/Diagnostics;../USER/FONTS;../USER/FreeRTOS_Debug;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../BSP/LCD;../Middlewares/Third_Party/FreeRTOS/Source/include;../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2;../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F;../Middlewares/Third_Party/lvgl_minimal_runtime;../Middlewares/Third_Party/lvgl_minimal_runtime/lvgl;../Middlewares/Third_Party/lvgl_minimal_runtime/lvgl/include;../Middlewares/Third_Party/lvgl_minimal_runtime/port;..\Middlewares\Third_Party\lvgl_minimal_runtime\lvgl\include\lvgl\draw;..\BSP\Key;..\BSP\Power;..\BSP\IIC;..\BSP\Watchdog;..\BSP\PROM;..\BSP\BlueTooth</IncludePath>
+              <IncludePath>../Core/Inc;../USER/HwAccess;../USER/Task/GUI_Task;../USER/Task/HardWare_init_task;../USER/Task/Key_Task;../USER/Task/PROM_Test;../USER/Task/Sensor_Task;../USER/Task/Watchdog_Task;../USER/PageManagement;../USER/GUI_page;../USER/GUI_page/Home;../USER/GUI_page/Menu;../USER/GUI_page/Common;../USER/GUI_page/Tools;../USER/GUI_page/Status;../USER/GUI_page/Diagnostics;../USER/FONTS;../USER/FreeRTOS_Debug;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../BSP/LCD;../Middlewares/Third_Party/FreeRTOS/Source/include;../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2;../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F;../Middlewares/Third_Party/lvgl_minimal_runtime;../Middlewares/Third_Party/lvgl_minimal_runtime/lvgl;../Middlewares/Third_Party/lvgl_minimal_runtime/lvgl/include;../Middlewares/Third_Party/lvgl_minimal_runtime/port;..\Middlewares\Third_Party\lvgl_minimal_runtime\lvgl\include\lvgl\draw;..\BSP\Key;..\BSP\Power;..\BSP\IIC;..\BSP\Watchdog;..\BSP\PROM;..\BSP\BlueTooth;..\BSP\AHT21;..\BSP\LSM303DLHC;..\BSP\MPU6050</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -432,6 +432,21 @@
               <FileName>bsp_bluetooth.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\BSP\BlueTooth\bsp_bluetooth.c</FilePath>
+            </File>
+            <File>
+              <FileName>bsp_aht21.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\BSP\AHT21\bsp_aht21.c</FilePath>
+            </File>
+            <File>
+              <FileName>bsp_lsm303dlhc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\BSP\LSM303DLHC\bsp_lsm303dlhc.c</FilePath>
+            </File>
+            <File>
+              <FileName>bsp_mpu6050.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\BSP\MPU6050\bsp_mpu6050.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -1532,6 +1547,16 @@
               <FilePath>../USER/FONTS/my_icon_fonts.c</FilePath>
             </File>
             <File>
+              <FileName>img_compass_needle.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../USER/Pictures/img_compass_needle.c</FilePath>
+            </File>
+            <File>
+              <FileName>ui_img_compass_needle_png.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../USER/Pictures/ui_img_compass_needle_png.c</FilePath>
+            </File>
+            <File>
               <FileName>home_page.c</FileName>
               <FileType>1</FileType>
               <FilePath>../USER/GUI_page/Home/home_page.c</FilePath>
@@ -1565,6 +1590,16 @@
               <FileName>animation_page.c</FileName>
               <FileType>1</FileType>
               <FilePath>../USER/GUI_page/Tools/animation_page.c</FilePath>
+            </File>
+            <File>
+              <FileName>compass_page.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../USER/GUI_page/Tools/compass_page.c</FilePath>
+            </File>
+            <File>
+              <FileName>test_page.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../USER/GUI_page/Tools/test_page.c</FilePath>
             </File>
             <File>
               <FileName>charging_page.c</FileName>

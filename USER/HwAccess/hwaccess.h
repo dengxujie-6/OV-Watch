@@ -16,6 +16,15 @@ typedef enum {
 } HwAccess_KeyId_t;
 
 /**
+ * @brief 三轴有符号整数向量。
+ */
+typedef struct {
+    int16_t x;
+    int16_t y;
+    int16_t z;
+} HwAccess_Vector3i16_t;
+
+/**
  * @brief LCD 硬件操作表。
  *
  * LCD 模块向任务层暴露初始化、显示开关和背光控制；刷屏窗口和像素传输仍由 LVGL 移植层使用。
@@ -103,6 +112,55 @@ typedef struct Bluetoothstruct_typedef
 } obj_BlueTooth;
 
 /**
+ * @brief AHT21 温湿度传感器缓存访问接口。
+ *
+ * Sensor_Task 负责周期触发 update_cache()，UI 层只读取缓存值，不直接访问 I2C 总线。
+ */
+typedef struct Aht21struct_typedef
+{
+    int (*init)(void);  /**< 初始化 AHT21 及其软件 I2C 总线。*/
+    int (*probe)(void);  /**< 探测 AHT21 是否响应默认 I2C 地址。*/
+    int (*update_cache)(void);  /**< 采样一次温湿度并刷新 HwAccess 缓存。*/
+    int16_t (*get_temperature_x10_c)(void);  /**< 读取缓存温度，单位 0.1 摄氏度。*/
+    uint16_t (*get_humidity_x10_percent)(void);  /**< 读取缓存湿度，单位 0.1%RH。*/
+    uint8_t (*is_valid)(void);  /**< 缓存是否已有一次有效 AHT21 采样。*/
+} obj_Aht21;
+
+/**
+ * @brief LSM303DLHC 加速度计和磁力计缓存访问接口。
+ *
+ * Sensor_Task 周期刷新缓存；UI 或业务层只读取已经换算好的三轴数据。
+ */
+typedef struct Lsm303dlhcstruct_typedef
+{
+    int (*init)(void);  /**< 初始化 LSM303DLHC 加速度计和磁力计。*/
+    int (*probe)(void);  /**< 探测 LSM303DLHC 是否响应。*/
+    int (*update_cache)(void);  /**< 采样一次加速度和磁力计并刷新缓存。*/
+    int (*get_accel_mg)(HwAccess_Vector3i16_t * value);  /**< 读取缓存加速度，单位 mg。*/
+    int (*get_mag_mgauss)(HwAccess_Vector3i16_t * value);  /**< 读取缓存磁场，单位毫高斯。*/
+    uint8_t (*is_valid)(void);  /**< 缓存是否已有一次有效 LSM303DLHC 采样。*/
+} obj_Lsm303dlhc;
+
+/**
+ * @brief MPU6050 加速度计、陀螺仪和温度缓存访问接口。
+ *
+ * Sensor_Task 周期刷新缓存；UI 或业务层只读取已经换算好的三轴数据，
+ * 不直接访问 I2C 总线，也不直接包含 BSP 头文件。
+ */
+typedef struct Mpu6050struct_typedef
+{
+    int (*init)(void);  /**< 初始化 MPU6050 并配置默认量程。*/
+    int (*probe)(void);  /**< 探测 MPU6050 是否响应。*/
+    int (*update_cache)(void);  /**< 采样一次六轴和温度数据并刷新缓存。*/
+    int (*get_accel_mg)(HwAccess_Vector3i16_t * value);  /**< 读取缓存加速度，单位 mg。*/
+    int (*get_gyro_x10_dps)(HwAccess_Vector3i16_t * value);  /**< 读取缓存角速度，单位 0.1dps。*/
+    int16_t (*get_temperature_x10_c)(void);  /**< 读取缓存温度，单位 0.1 摄氏度。*/
+    uint8_t (*is_valid)(void);  /**< 缓存是否已有一次有效 MPU6050 采样。*/
+    uint32_t (*get_step_count)(void);  /**< 读取基于 MPU6050 加速度缓存估算的步数。*/
+    void (*reset_step_count)(void);  /**< 清零 MPU6050 计步状态和步数。*/
+} obj_Mpu6050;
+
+/**
  * @brief 顶层硬件访问对象。
  *
  * 后续新增硬件模块时，应以模块操作表的形式加入这里，任务层和 UI 层统一通过该对象访问硬件。
@@ -115,6 +173,9 @@ typedef struct hwaccess_typedef
     obj_Watchdog watchdog;  /**< 外部硬件看门狗操作表。 */
     obj_Prom prom;  /**< 外部 PROM 读写操作表。 */
     obj_BlueTooth bluetooth;  /**< 蓝牙模块操作表。 */
+    obj_Aht21 aht21;  /**< AHT21 温湿度传感器缓存访问接口。*/
+    obj_Lsm303dlhc lsm303dlhc;  /**< LSM303DLHC 加速度计和磁力计缓存访问接口。*/
+    obj_Mpu6050 mpu6050;  /**< MPU6050 六轴 IMU 缓存访问接口。*/
 } obj_HwAccess;
 
 /**

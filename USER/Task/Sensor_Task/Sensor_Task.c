@@ -20,6 +20,18 @@ void Sensor_Task(void *argument)
             HwAccess.power.update_battery_cache();
         }
 
+        if(HwAccess.aht21.update_cache != 0) {
+            (void)HwAccess.aht21.update_cache();
+        }
+
+        if(HwAccess.lsm303dlhc.update_cache != 0) {
+            (void)HwAccess.lsm303dlhc.update_cache();
+        }
+
+        if(HwAccess.mpu6050.update_cache != 0) {
+            (void)HwAccess.mpu6050.update_cache();
+        }
+
         osDelay(SENSOR_TASK_REFRESH_PERIOD_MS);
     }
 }

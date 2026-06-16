@@ -1,8 +1,11 @@
 #include "hwaccess.h"
 
+#include "bsp_aht21.h"
 #include "bsp_ext_watchdog.h"
 #include "bsp_bluetooth.h"
 #include "bsp_key.h"
+#include "bsp_lsm303dlhc.h"
+#include "bsp_mpu6050.h"
 #include "bsp_power.h"
 #include "bsp_prom.h"
 #include "CST816T.h"
@@ -10,6 +13,10 @@
 
 #define HWACCESS_BATTERY_MIN_MV 2750U
 #define HWACCESS_BATTERY_MAX_MV 4200U
+#define HWACCESS_STEP_BASELINE_SHIFT 3U
+#define HWACCESS_STEP_HIGH_DELTA_MG2 350000UL
+#define HWACCESS_STEP_LOW_DELTA_MG2 120000UL
+#define HWACCESS_STEP_REFRACTORY_SAMPLES 1U
 
 static void HwAccess_Lcd_Init(void);
 static uint8_t HwAccess_Key_IsPressed(HwAccess_KeyId_t key);
@@ -17,10 +24,50 @@ static void HwAccess_Power_UpdateBatteryCache(void);
 static uint16_t HwAccess_Power_GetBatteryVoltageMv(void);
 static uint8_t HwAccess_Power_GetBatteryPercent(void);
 static uint8_t HwAccess_Power_IsBatteryValid(void);
+static int HwAccess_Aht21_UpdateCache(void);
+static int16_t HwAccess_Aht21_GetTemperatureX10C(void);
+static uint16_t HwAccess_Aht21_GetHumidityX10Percent(void);
+static uint8_t HwAccess_Aht21_IsValid(void);
+static int HwAccess_Lsm303dlhc_UpdateCache(void);
+static int HwAccess_Lsm303dlhc_GetAccelMg(HwAccess_Vector3i16_t * value);
+static int HwAccess_Lsm303dlhc_GetMagMgauss(HwAccess_Vector3i16_t * value);
+static uint8_t HwAccess_Lsm303dlhc_IsValid(void);
+static int HwAccess_Mpu6050_UpdateCache(void);
+static int HwAccess_Mpu6050_GetAccelMg(HwAccess_Vector3i16_t * value);
+static int HwAccess_Mpu6050_GetGyroX10Dps(HwAccess_Vector3i16_t * value);
+static int16_t HwAccess_Mpu6050_GetTemperatureX10C(void);
+static uint32_t HwAccess_Mpu6050_GetStepCount(void);
+static void HwAccess_Mpu6050_ResetStepCount(void);
+static uint8_t HwAccess_Mpu6050_IsValid(void);
+static void HwAccess_Mpu6050_UpdateStepCounter(const BSP_MPU6050_Data_t * data);
+static uint32_t HwAccess_Mpu6050_AccelMag2(const BSP_MPU6050_Vector_t * accel);
 
 static volatile uint16_t hwaccess_battery_voltage_mv;
 static volatile uint8_t hwaccess_battery_percent;
 static volatile uint8_t hwaccess_battery_valid;
+static volatile int16_t hwaccess_aht21_temperature_x10_c;
+static volatile uint16_t hwaccess_aht21_humidity_x10_percent;
+static volatile uint8_t hwaccess_aht21_valid;
+static volatile int16_t hwaccess_lsm303_accel_mg_x;
+static volatile int16_t hwaccess_lsm303_accel_mg_y;
+static volatile int16_t hwaccess_lsm303_accel_mg_z;
+static volatile int16_t hwaccess_lsm303_mag_mgauss_x;
+static volatile int16_t hwaccess_lsm303_mag_mgauss_y;
+static volatile int16_t hwaccess_lsm303_mag_mgauss_z;
+static volatile uint8_t hwaccess_lsm303_valid;
+static volatile int16_t hwaccess_mpu6050_accel_mg_x;
+static volatile int16_t hwaccess_mpu6050_accel_mg_y;
+static volatile int16_t hwaccess_mpu6050_accel_mg_z;
+static volatile int16_t hwaccess_mpu6050_gyro_x10_dps_x;
+static volatile int16_t hwaccess_mpu6050_gyro_x10_dps_y;
+static volatile int16_t hwaccess_mpu6050_gyro_x10_dps_z;
+static volatile int16_t hwaccess_mpu6050_temperature_x10_c;
+static volatile uint8_t hwaccess_mpu6050_valid;
+static volatile uint32_t hwaccess_mpu6050_step_count;
+static uint32_t hwaccess_mpu6050_step_baseline_mg2;
+static uint8_t hwaccess_mpu6050_step_baseline_valid;
+static uint8_t hwaccess_mpu6050_step_high_state;
+static uint8_t hwaccess_mpu6050_step_refractory;
 
 /**
  * @brief 初始化屏幕相关硬件。
@@ -112,10 +159,301 @@ static uint8_t HwAccess_Power_IsBatteryValid(void)
 }
 
 /**
+ * @brief 采样一次 AHT21 并刷新温湿度缓存。
+ *
+ * 该函数运行在 Sensor_Task 上下文，允许等待 AHT21 转换完成；UI 只读缓存，
+ * 不在 LVGL 刷新路径里触发软件 I2C 时序。
+ */
+static int HwAccess_Aht21_UpdateCache(void)
+{
+    BSP_AHT21_Data_t data;
+    int ret = BSP_AHT21_Read(&data);
+
+    if(ret != 0) {
+        return ret;
+    }
+
+    hwaccess_aht21_temperature_x10_c = data.temperature_x10_c;
+    hwaccess_aht21_humidity_x10_percent = data.humidity_x10_percent;
+    hwaccess_aht21_valid = 1U;
+
+    return 0;
+}
+
+/**
+ * @brief 从缓存读取最近一次 AHT21 温度。
+ */
+static int16_t HwAccess_Aht21_GetTemperatureX10C(void)
+{
+    return (hwaccess_aht21_valid != 0U) ? hwaccess_aht21_temperature_x10_c : 0;
+}
+
+/**
+ * @brief 从缓存读取最近一次 AHT21 相对湿度。
+ */
+static uint16_t HwAccess_Aht21_GetHumidityX10Percent(void)
+{
+    return (hwaccess_aht21_valid != 0U) ? hwaccess_aht21_humidity_x10_percent : 0U;
+}
+
+/**
+ * @brief 查询 AHT21 缓存是否已有有效采样。
+ */
+static uint8_t HwAccess_Aht21_IsValid(void)
+{
+    return hwaccess_aht21_valid;
+}
+
+/**
  * @brief 全局硬件访问对象。
  *
  * 该表把任务层可用的硬件接口绑定到具体 BSP 实现，避免任务直接依赖底层模块。
  */
+/**
+ * @brief 采样一次 LSM303DLHC 并刷新三轴缓存。
+ *
+ * 该函数运行在 Sensor_Task 上下文，允许通过软件 I2C 阻塞读取；UI 和业务层只读取缓存。
+ */
+static int HwAccess_Lsm303dlhc_UpdateCache(void)
+{
+    BSP_LSM303DLHC_Data_t data;
+    int ret = BSP_LSM303DLHC_Read(&data);
+
+    if(ret != 0) {
+        return ret;
+    }
+
+    hwaccess_lsm303_accel_mg_x = data.accel_mg.x;
+    hwaccess_lsm303_accel_mg_y = data.accel_mg.y;
+    hwaccess_lsm303_accel_mg_z = data.accel_mg.z;
+    hwaccess_lsm303_mag_mgauss_x = data.mag_mgauss.x;
+    hwaccess_lsm303_mag_mgauss_y = data.mag_mgauss.y;
+    hwaccess_lsm303_mag_mgauss_z = data.mag_mgauss.z;
+    hwaccess_lsm303_valid = 1U;
+
+    return 0;
+}
+
+/**
+ * @brief 读取缓存加速度，单位 mg。
+ */
+static int HwAccess_Lsm303dlhc_GetAccelMg(HwAccess_Vector3i16_t * value)
+{
+    if(value == NULL) {
+        return -1;
+    }
+
+    if(hwaccess_lsm303_valid == 0U) {
+        return -2;
+    }
+
+    value->x = hwaccess_lsm303_accel_mg_x;
+    value->y = hwaccess_lsm303_accel_mg_y;
+    value->z = hwaccess_lsm303_accel_mg_z;
+
+    return 0;
+}
+
+/**
+ * @brief 读取缓存磁场，单位毫高斯。
+ */
+static int HwAccess_Lsm303dlhc_GetMagMgauss(HwAccess_Vector3i16_t * value)
+{
+    if(value == NULL) {
+        return -1;
+    }
+
+    if(hwaccess_lsm303_valid == 0U) {
+        return -2;
+    }
+
+    value->x = hwaccess_lsm303_mag_mgauss_x;
+    value->y = hwaccess_lsm303_mag_mgauss_y;
+    value->z = hwaccess_lsm303_mag_mgauss_z;
+
+    return 0;
+}
+
+/**
+ * @brief 查询 LSM303DLHC 缓存是否已有有效采样。
+ */
+static uint8_t HwAccess_Lsm303dlhc_IsValid(void)
+{
+    return hwaccess_lsm303_valid;
+}
+
+/**
+ * @brief 采样一次 MPU6050 并刷新六轴与温度缓存。
+ *
+ * 该函数运行在 Sensor_Task 上下文，允许通过软件 I2C 阻塞读取；UI 和业务层只读取缓存。
+ */
+static int HwAccess_Mpu6050_UpdateCache(void)
+{
+    BSP_MPU6050_Data_t data;
+    int ret = BSP_MPU6050_Read(&data);
+
+    if(ret != 0) {
+        return ret;
+    }
+
+    hwaccess_mpu6050_accel_mg_x = data.accel_mg.x;
+    hwaccess_mpu6050_accel_mg_y = data.accel_mg.y;
+    hwaccess_mpu6050_accel_mg_z = data.accel_mg.z;
+    hwaccess_mpu6050_gyro_x10_dps_x = data.gyro_x10_dps.x;
+    hwaccess_mpu6050_gyro_x10_dps_y = data.gyro_x10_dps.y;
+    hwaccess_mpu6050_gyro_x10_dps_z = data.gyro_x10_dps.z;
+    hwaccess_mpu6050_temperature_x10_c = data.temperature_x10_c;
+    HwAccess_Mpu6050_UpdateStepCounter(&data);
+    hwaccess_mpu6050_valid = 1U;
+
+    return 0;
+}
+
+/**
+ * @brief 读取缓存加速度，单位 mg。
+ */
+static int HwAccess_Mpu6050_GetAccelMg(HwAccess_Vector3i16_t * value)
+{
+    if(value == NULL) {
+        return -1;
+    }
+
+    if(hwaccess_mpu6050_valid == 0U) {
+        return -2;
+    }
+
+    value->x = hwaccess_mpu6050_accel_mg_x;
+    value->y = hwaccess_mpu6050_accel_mg_y;
+    value->z = hwaccess_mpu6050_accel_mg_z;
+
+    return 0;
+}
+
+/**
+ * @brief 读取缓存角速度，单位 0.1dps。
+ */
+static int HwAccess_Mpu6050_GetGyroX10Dps(HwAccess_Vector3i16_t * value)
+{
+    if(value == NULL) {
+        return -1;
+    }
+
+    if(hwaccess_mpu6050_valid == 0U) {
+        return -2;
+    }
+
+    value->x = hwaccess_mpu6050_gyro_x10_dps_x;
+    value->y = hwaccess_mpu6050_gyro_x10_dps_y;
+    value->z = hwaccess_mpu6050_gyro_x10_dps_z;
+
+    return 0;
+}
+
+/**
+ * @brief 读取缓存温度，单位 0.1 摄氏度。
+ */
+static int16_t HwAccess_Mpu6050_GetTemperatureX10C(void)
+{
+    return (hwaccess_mpu6050_valid != 0U) ? hwaccess_mpu6050_temperature_x10_c : 0;
+}
+
+/**
+ * @brief 查询 MPU6050 缓存是否已有有效采样。
+ */
+/**
+ * @brief 读取 MPU6050 计步估算值。
+ */
+static uint32_t HwAccess_Mpu6050_GetStepCount(void)
+{
+    return hwaccess_mpu6050_step_count;
+}
+
+/**
+ * @brief 清零 MPU6050 计步状态。
+ */
+static void HwAccess_Mpu6050_ResetStepCount(void)
+{
+    hwaccess_mpu6050_step_count = 0U;
+    hwaccess_mpu6050_step_baseline_mg2 = 0U;
+    hwaccess_mpu6050_step_baseline_valid = 0U;
+    hwaccess_mpu6050_step_high_state = 0U;
+    hwaccess_mpu6050_step_refractory = 0U;
+}
+
+static uint8_t HwAccess_Mpu6050_IsValid(void)
+{
+    return hwaccess_mpu6050_valid;
+}
+
+/**
+ * @brief 使用加速度模长变化估算步数。
+ *
+ * Sensor_Task 当前周期为 500ms，因此这里使用低频友好的阈值和峰值锁存：
+ * 模长平方明显高于动态基线时计一步，回落到低阈值后才允许下一次计步。
+ */
+static void HwAccess_Mpu6050_UpdateStepCounter(const BSP_MPU6050_Data_t * data)
+{
+    uint32_t mag2;
+    uint32_t delta;
+    int32_t baseline_diff;
+
+    if(data == NULL) {
+        return;
+    }
+
+    mag2 = HwAccess_Mpu6050_AccelMag2(&data->accel_mg);
+
+    if(hwaccess_mpu6050_step_baseline_valid == 0U) {
+        hwaccess_mpu6050_step_baseline_mg2 = mag2;
+        hwaccess_mpu6050_step_baseline_valid = 1U;
+        return;
+    }
+
+    baseline_diff = (int32_t)mag2 - (int32_t)hwaccess_mpu6050_step_baseline_mg2;
+    hwaccess_mpu6050_step_baseline_mg2 =
+        (uint32_t)((int32_t)hwaccess_mpu6050_step_baseline_mg2 +
+                   (baseline_diff >> HWACCESS_STEP_BASELINE_SHIFT));
+
+    if(hwaccess_mpu6050_step_refractory > 0U) {
+        hwaccess_mpu6050_step_refractory--;
+    }
+
+    delta = (mag2 > hwaccess_mpu6050_step_baseline_mg2) ?
+            (mag2 - hwaccess_mpu6050_step_baseline_mg2) :
+            0U;
+
+    if((hwaccess_mpu6050_step_high_state == 0U) &&
+       (hwaccess_mpu6050_step_refractory == 0U) &&
+       (delta >= HWACCESS_STEP_HIGH_DELTA_MG2)) {
+        hwaccess_mpu6050_step_count++;
+        hwaccess_mpu6050_step_high_state = 1U;
+        hwaccess_mpu6050_step_refractory = HWACCESS_STEP_REFRACTORY_SAMPLES;
+    } else if((hwaccess_mpu6050_step_high_state != 0U) &&
+              (delta <= HWACCESS_STEP_LOW_DELTA_MG2)) {
+        hwaccess_mpu6050_step_high_state = 0U;
+    }
+}
+
+/**
+ * @brief 计算加速度 mg 向量的模长平方，避免在计步路径中使用 sqrt()。
+ */
+static uint32_t HwAccess_Mpu6050_AccelMag2(const BSP_MPU6050_Vector_t * accel)
+{
+    int32_t x;
+    int32_t y;
+    int32_t z;
+
+    if(accel == NULL) {
+        return 0U;
+    }
+
+    x = accel->x;
+    y = accel->y;
+    z = accel->z;
+
+    return (uint32_t)((x * x) + (y * y) + (z * z));
+}
+
 obj_HwAccess HwAccess = {
     .lcd = {
         .init = HwAccess_Lcd_Init,
@@ -160,5 +498,32 @@ obj_HwAccess HwAccess = {
         .is_tx_busy = BSP_BlueTooth_IsTxBusy,
         .take_tx_done = BSP_BlueTooth_TakeTxDone,
         .receive = BSP_BlueTooth_Receive,
+    },
+    .aht21 = {
+        .init = BSP_AHT21_Init,
+        .probe = BSP_AHT21_Probe,
+        .update_cache = HwAccess_Aht21_UpdateCache,
+        .get_temperature_x10_c = HwAccess_Aht21_GetTemperatureX10C,
+        .get_humidity_x10_percent = HwAccess_Aht21_GetHumidityX10Percent,
+        .is_valid = HwAccess_Aht21_IsValid,
+    },
+    .lsm303dlhc = {
+        .init = BSP_LSM303DLHC_Init,
+        .probe = BSP_LSM303DLHC_Probe,
+        .update_cache = HwAccess_Lsm303dlhc_UpdateCache,
+        .get_accel_mg = HwAccess_Lsm303dlhc_GetAccelMg,
+        .get_mag_mgauss = HwAccess_Lsm303dlhc_GetMagMgauss,
+        .is_valid = HwAccess_Lsm303dlhc_IsValid,
+    },
+    .mpu6050 = {
+        .init = BSP_MPU6050_Init,
+        .probe = BSP_MPU6050_Probe,
+        .update_cache = HwAccess_Mpu6050_UpdateCache,
+        .get_accel_mg = HwAccess_Mpu6050_GetAccelMg,
+        .get_gyro_x10_dps = HwAccess_Mpu6050_GetGyroX10Dps,
+        .get_temperature_x10_c = HwAccess_Mpu6050_GetTemperatureX10C,
+        .get_step_count = HwAccess_Mpu6050_GetStepCount,
+        .reset_step_count = HwAccess_Mpu6050_ResetStepCount,
+        .is_valid = HwAccess_Mpu6050_IsValid,
     },
 };

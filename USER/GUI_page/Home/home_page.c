@@ -2,8 +2,9 @@
  * @file home_page.c
  * @brief 默认主页页面实现。
  *
- * 页面仅使用 LVGL 对象绘制首页，不直接访问 HAL/BSP。当前步数、温湿度和电量为
- * 静态展示值，后续接入业务数据时应通过应用数据接口或 HWAccess/BoardHW 提供缓存值。
+ * 页面仅使用 LVGL 对象绘制首页，不直接访问 HAL/BSP。步数、温湿度和电量
+ * 都通过 HwAccess 缓存读取，由后台任务负责真实采样和计步。
+ * 温湿度和电量通过 HwAccess 缓存读取，由后台任务负责真实采样。
  */
 
 #include "home_page.h"
@@ -38,6 +39,7 @@ extern const lv_font_t my_font_source_han_38;
 // 慢速滑动时触摸芯片可能短暂报松手，连续确认后才触发回弹/进入。
 #define HOME_MENU_RELEASE_CONFIRM_COUNT 3U
 #define HOME_BATTERY_REFRESH_MS 1000U
+#define HOME_STEP_TARGET        15000U
 
 // 主页配色集中放在这里，后续微调视觉风格时优先改这些颜色。
 #define HOME_COLOR_BG        0x02070c
@@ -61,9 +63,11 @@ struct home_page {
     lv_obj_t * step_label;  /**< 步数字符，root 删除时自动删除。 */
     lv_obj_t * battery_level; /**< 顶部电池电量条，root 删除时自动删除。 */
     lv_obj_t * battery_label; /**< 顶部电池百分比文字，root 删除时自动删除。 */
+    lv_obj_t * temperature_label; /**< 温度卡片数值，root 删除时自动删除。 */
+    lv_obj_t * humidity_label; /**< 湿度卡片数值，root 删除时自动删除。 */
     lv_obj_t * menu_preview; /**< 左划跟手阶段的临时菜单预览层，root 删除时自动删除。 */
     lv_timer_t * drag_timer; /**< 主页激活时的触摸轮询定时器，由本页面删除。 */
-    lv_timer_t * battery_timer; /**< 低频刷新电池缓存显示的 LVGL 定时器。 */
+    lv_timer_t * battery_timer; /**< 低频刷新主页缓存数据显示的 LVGL 定时器。 */
     lv_point_t press_point; /**< 本次触摸按下坐标，用于计算横向拖动距离。 */
     int32_t drag_x;         /**< 当前左划距离，单位为屏幕像素。 */
     uint8_t release_count;  /**< 连续检测到松手的次数，用于过滤触摸采样抖动。 */
@@ -93,6 +97,8 @@ static void home_menu_drag_poll(home_page_t * page, lv_indev_t * indev);
 static void home_menu_drag_timer_cb(lv_timer_t * timer);
 static void home_battery_timer_cb(lv_timer_t * timer);
 static void home_battery_update(home_page_t * page);
+static void home_steps_update(home_page_t * page);
+static void home_sensor_update(home_page_t * page);
 
 static void home_page_key_cb(lv_event_t * e)
 {
@@ -378,6 +384,72 @@ static void home_battery_timer_cb(lv_timer_t * timer)
     home_page_t * page = (home_page_t *)lv_timer_get_user_data(timer);
 
     home_battery_update(page);
+    home_steps_update(page);
+    home_sensor_update(page);
+}
+
+/**
+ * @brief 从 HwAccess 缓存刷新主页步数圆环和数值。
+ */
+static void home_steps_update(home_page_t * page)
+{
+    uint32_t steps = 0U;
+    uint32_t display_steps;
+
+    if((page == NULL) || (page->step_arc == NULL) || (page->step_label == NULL)) {
+        return;
+    }
+
+    if(HwAccess.mpu6050.get_step_count != NULL) {
+        steps = HwAccess.mpu6050.get_step_count();
+    }
+
+    display_steps = (steps > HOME_STEP_TARGET) ? HOME_STEP_TARGET : steps;
+    lv_arc_set_range(page->step_arc, 0, HOME_STEP_TARGET);
+    lv_arc_set_value(page->step_arc, display_steps);
+    lv_label_set_text_fmt(page->step_label, "%lu", (unsigned long)steps);
+}
+
+/**
+ * @brief 从 HwAccess 缓存刷新主页温湿度卡片。
+ *
+ * AHT21 的实际 I2C 测量由 Sensor_Task 周期执行；这里仅在 LVGL 线程读取缓存并更新 label。
+ */
+static void home_sensor_update(home_page_t * page)
+{
+    int16_t temp_x10;
+    uint16_t humidity_x10;
+    int16_t temp_c;
+    uint16_t humidity_percent;
+
+    if((page == NULL) || (page->temperature_label == NULL) || (page->humidity_label == NULL)) {
+        return;
+    }
+
+    if((HwAccess.aht21.is_valid != NULL) &&
+       (HwAccess.aht21.get_temperature_x10_c != NULL) &&
+       (HwAccess.aht21.get_humidity_x10_percent != NULL) &&
+       (HwAccess.aht21.is_valid() != 0U)) {
+        temp_x10 = HwAccess.aht21.get_temperature_x10_c();
+        humidity_x10 = HwAccess.aht21.get_humidity_x10_percent();
+
+        // 卡片宽度较小，主页显示四舍五入后的整数值，精度数据仍保留在 HwAccess 缓存中。
+        if(temp_x10 >= 0) {
+            temp_c = (int16_t)((temp_x10 + 5) / 10);
+        } else {
+            temp_c = (int16_t)((temp_x10 - 5) / 10);
+        }
+        humidity_percent = (uint16_t)((humidity_x10 + 5U) / 10U);
+        if(humidity_percent > 100U) {
+            humidity_percent = 100U;
+        }
+
+        lv_label_set_text_fmt(page->temperature_label, "%d" "\xE2" "\x84" "\x83", temp_c);
+        lv_label_set_text_fmt(page->humidity_label, "%u%%", humidity_percent);
+    } else {
+        lv_label_set_text(page->temperature_label, "--" "\xE2" "\x84" "\x83");
+        lv_label_set_text(page->humidity_label, "--%");
+    }
 }
 
 static lv_obj_t * home_label_create(lv_obj_t * parent, const char * text,
@@ -472,8 +544,8 @@ static void home_steps_panel_create(home_page_t * page)
     // 圆环角度：背景从 130 到 410；进度到 360 约为 82%。
     lv_arc_set_bg_angles(page->step_arc, 130, 410);
     lv_arc_set_angles(page->step_arc, 130, 360);
-    lv_arc_set_range(page->step_arc, 0, 15000);
-    lv_arc_set_value(page->step_arc, 12345);
+    lv_arc_set_range(page->step_arc, 0, HOME_STEP_TARGET);
+    lv_arc_set_value(page->step_arc, 0);
     lv_obj_clear_flag(page->step_arc, LV_OBJ_FLAG_CLICKABLE);
     // 圆环线宽：按需求固定 8px。
     lv_obj_set_style_arc_width(page->step_arc, 8, LV_PART_MAIN);
@@ -494,7 +566,7 @@ static void home_steps_panel_create(home_page_t * page)
                             LV_TEXT_ALIGN_CENTER);
 
     // 步数数值：使用新增 38 号字库直接绘制。
-    page->step_label = home_label_create(page->root, "12,345", 35, 115 + HOME_UI_Y_OFFSET, 170, 58,
+    page->step_label = home_label_create(page->root, "0", 35, 115 + HOME_UI_Y_OFFSET, 170, 58,
                                          &my_font_source_han_38,
                                          lv_color_hex(HOME_COLOR_WHITE),
                                          LV_TEXT_ALIGN_CENTER);
@@ -503,6 +575,7 @@ static void home_steps_panel_create(home_page_t * page)
     (void)home_label_create(page->root, "/ 15,000", 76, 165 + HOME_UI_Y_OFFSET, 88, 24,
                             &my_font_source_han_18, lv_color_hex(HOME_COLOR_TEXT_GRAY),
                             LV_TEXT_ALIGN_CENTER);
+    home_steps_update(page);
 
     // 这四个 label 刚创建完成后是 root 的最后四个子对象，统一放入同一条中轴盒子。
     // uint32_t child_count = lv_obj_get_child_count(page->root);
@@ -530,12 +603,14 @@ static void home_sun_icon_create(lv_obj_t * parent, int32_t x, int32_t y)
                             LV_TEXT_ALIGN_CENTER);
 }
 
-static void home_metric_card_create(lv_obj_t * parent, int32_t x, int32_t y,
-                                    uint32_t border_hex, const char * symbol,
-                                    uint32_t symbol_hex, const char * value,
-                                    const char * title)
+static lv_obj_t * home_metric_card_create(lv_obj_t * parent, int32_t x, int32_t y,
+                                          uint32_t border_hex, const char * symbol,
+                                          uint32_t symbol_hex, const char * value,
+                                          const char * title)
 {
     lv_obj_t * card = lv_obj_create(parent);
+    lv_obj_t * value_label;
+
     lv_obj_remove_style_all(card);
     // 底部卡片：左卡传入 x=18，右卡传入 x=126；统一 w=96, h=58, radius=14。
     lv_obj_set_pos(card, x, y);
@@ -565,14 +640,16 @@ static void home_metric_card_create(lv_obj_t * parent, int32_t x, int32_t y,
     }
 
     // 卡片数值：使用新增 19 号字库直接绘制。
-    (void)home_label_create(card, value, 40, 7, 48, 30,
-                            &my_font_source_han_19, lv_color_hex(HOME_COLOR_WHITE),
-                            LV_TEXT_ALIGN_LEFT);
+    value_label = home_label_create(card, value, 40, 7, 48, 30,
+                                    &my_font_source_han_19, lv_color_hex(HOME_COLOR_WHITE),
+                                    LV_TEXT_ALIGN_LEFT);
 
     // 卡片底部标签：卡片内 x=10, y=38, w=76, h=14。
     (void)home_label_create(card, title, 10, 38, 76, 14,
                             &my_font_source_han_10, lv_color_hex(symbol_hex),
                             LV_TEXT_ALIGN_CENTER);
+
+    return value_label;
 }
 
 home_page_t * home_page_create(void)
@@ -594,11 +671,14 @@ home_page_t * home_page_create(void)
     home_top_bar_create(page);
     home_steps_panel_create(page);
     // 左侧温度卡片：屏幕 x=18, y=198, w=96, h=58。
-    home_metric_card_create(page->root, 18, 198, 0x225b75, NULL,
-                            HOME_COLOR_ORANGE, "24" "\xE2" "\x84" "\x83", "TEMP");
+    page->temperature_label = home_metric_card_create(page->root, 18, 198, 0x225b75, NULL,
+                                                      HOME_COLOR_ORANGE,
+                                                      "--" "\xE2" "\x84" "\x83",
+                                                      "TEMP");
     // 右侧湿度卡片：屏幕 x=126, y=198, w=96, h=58；两卡间距 12px。
-    home_metric_card_create(page->root, 126, 198, 0x1c4b98, LV_SYMBOL_TINT,
-                            HOME_COLOR_BLUE, "58%", "HUMID");
+    page->humidity_label = home_metric_card_create(page->root, 126, 198, 0x1c4b98, LV_SYMBOL_TINT,
+                                                   HOME_COLOR_BLUE, "--%", "HUMID");
+    home_sensor_update(page);
     home_menu_preview_create(page);
 
     page->drag_timer = lv_timer_create(home_menu_drag_timer_cb,

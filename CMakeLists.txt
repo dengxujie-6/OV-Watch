@@ -74,8 +74,12 @@ file(GLOB_RECURSE USER_SOURCES CONFIGURE_DEPENDS
     USER/GUI_page/*.c
     USER/HwAccess/*.c
     USER/PageManagement/page_manager.c
+    USER/Pictures/*.c
     USER/Task/*.c
 )
+
+# ui_CompassPage.c 是旧 SquareLine/LVGL 8 参考文件，当前页面实现已迁移到 Tools/compass_page.c。
+list(REMOVE_ITEM USER_SOURCES "${CMAKE_SOURCE_DIR}/USER/GUI_page/ui_CompassPage.c")
 
 # FreeRTOS 只编译内核、CMSIS-OS2 包装层、heap_4 和 GCC Cortex-M4F port。
 set(FREERTOS_SOURCES
@@ -150,6 +154,9 @@ target_include_directories(${TARGET_NAME} PRIVATE
     BSP/Watchdog
     BSP/PROM
     BSP/BlueTooth
+    BSP/AHT21
+    BSP/LSM303DLHC
+    BSP/MPU6050
     Middlewares/Third_Party/FreeRTOS/Source/include
     Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2
     "${FREERTOS_GCC_PORT_DIR}"

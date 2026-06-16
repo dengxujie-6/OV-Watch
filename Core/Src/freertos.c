@@ -40,7 +40,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define WATCHDOG_TASK_ENABLE 0U
+#define WATCHDOG_TASK_ENABLE 1U
 
 /* USER CODE END PD */
 

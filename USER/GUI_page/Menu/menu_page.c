@@ -12,7 +12,9 @@
 #include "animation_page.h"
 #include "calendar_page.h"
 #include "calculator_page.h"
+#include "compass_page.h"
 #include "stopwatch_page.h"
+#include "test_page.h"
 #include "title_page.h"
 
 /**
@@ -31,7 +33,7 @@ struct menu_page {
 
 extern const lv_font_t my_font_source_han_20;
 
-#define MENU_ITEM_COUNT 13
+#define MENU_ITEM_COUNT 14
 
 typedef struct {
     const char * title;
@@ -176,6 +178,12 @@ static void menu_item_event_cb(lv_event_t * e)
         else if(strcmp(title, "动画") == 0) {
             menu_page_request_push(&AnimationPage, NULL);
         }
+        else if(strcmp(title, "指南针") == 0) {
+            menu_page_request_push(&CompassPage, NULL);
+        }
+        else if(strcmp(title, "测试") == 0) {
+            menu_page_request_push(&TestPage, NULL);
+        }
         else {
             menu_page_request_push(&TitlePage, title);
         }
@@ -306,6 +314,7 @@ menu_page_t * menu_page_create(void)
         { "血氧", LV_SYMBOL_AUDIO, 0x74c0fc },
         { "环境", LV_SYMBOL_HOME, 0x63e6be },
         { "指南针", LV_SYMBOL_DRIVE, 0x91a7ff },
+        { "测试", LV_SYMBOL_EYE_OPEN, 0x66d9e8 },
         { "游戏", LV_SYMBOL_PLAY, 0xffc078 },
         { "设置", LV_SYMBOL_SETTINGS, 0xadb5bd },
         { "关于", LV_SYMBOL_COPY, 0xdee2e6 },
