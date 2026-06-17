@@ -14,6 +14,11 @@
 #define MPU6050_REG_CONFIG          0x1AU
 #define MPU6050_REG_GYRO_CONFIG     0x1BU
 #define MPU6050_REG_ACCEL_CONFIG    0x1CU
+#define MPU6050_REG_MOT_THR         0x1FU
+#define MPU6050_REG_MOT_DUR         0x20U
+#define MPU6050_REG_INT_PIN_CFG     0x37U
+#define MPU6050_REG_INT_ENABLE      0x38U
+#define MPU6050_REG_INT_STATUS      0x3AU
 #define MPU6050_REG_ACCEL_XOUT_H    0x3BU
 #define MPU6050_REG_PWR_MGMT_1      0x6BU
 #define MPU6050_REG_PWR_MGMT_2      0x6CU
@@ -27,6 +32,12 @@
 #define MPU6050_SAMPLE_DIV_100HZ    9U
 #define MPU6050_GYRO_FS_250DPS      0x00U
 #define MPU6050_ACCEL_FS_2G         0x00U
+#define MPU6050_MOTION_INT_ENABLE   0x40U
+#define MPU6050_DATA_RDY_INT_ENABLE 0x01U
+#define MPU6050_INT_CFG_ACTIVE_HIGH 0x00U
+#define MPU6050_INT_DISABLE_ALL     0x00U
+#define MPU6050_WAKE_MOTION_THR     18U
+#define MPU6050_WAKE_MOTION_DUR     4U
 
 #define MPU6050_RESET_DELAY_MS      100U
 #define MPU6050_WAKE_DELAY_MS       10U
@@ -145,6 +156,94 @@ int BSP_MPU6050_Read(BSP_MPU6050_Data_t * data)
     data->gyro_x10_dps.y = BSP_MPU6050_ScaleGyroX10Dps(data->gyro_raw.y);
     data->gyro_x10_dps.z = BSP_MPU6050_ScaleGyroX10Dps(data->gyro_raw.z);
     data->temperature_x10_c = BSP_MPU6050_ScaleTemperatureX10C(data->temperature_raw);
+
+    return 0;
+}
+
+/**
+ * @brief 配置 MPU6050 运动唤醒中断。
+ */
+int BSP_MPU6050_EnableWakeOnMotion(void)
+{
+    uint8_t int_status;
+    int ret;
+
+    if(mpu6050_initialized == 0U) {
+        ret = BSP_MPU6050_Init();
+        if(ret != 0) {
+            return ret;
+        }
+    }
+
+    if(BSP_IIC_WriteReg(mpu6050_addr, MPU6050_REG_INT_ENABLE, MPU6050_INT_DISABLE_ALL) != 0) {
+        return -9;
+    }
+
+    if(BSP_IIC_WriteReg(mpu6050_addr, MPU6050_REG_MOT_THR, MPU6050_WAKE_MOTION_THR) != 0) {
+        return -10;
+    }
+
+    if(BSP_IIC_WriteReg(mpu6050_addr, MPU6050_REG_MOT_DUR, MPU6050_WAKE_MOTION_DUR) != 0) {
+        return -11;
+    }
+
+    if(BSP_IIC_WriteReg(mpu6050_addr, MPU6050_REG_INT_PIN_CFG, MPU6050_INT_CFG_ACTIVE_HIGH) != 0) {
+        return -12;
+    }
+
+    if(BSP_IIC_WriteReg(mpu6050_addr, MPU6050_REG_INT_ENABLE, MPU6050_MOTION_INT_ENABLE) != 0) {
+        return -13;
+    }
+
+    if(BSP_IIC_ReadRegs(mpu6050_addr, MPU6050_REG_INT_STATUS, &int_status, 1U) != 0) {
+        return -14;
+    }
+
+    return 0;
+}
+
+/**
+ * @brief 关闭 MPU6050 运动唤醒中断并恢复常规采样配置。
+ */
+int BSP_MPU6050_DisableWakeOnMotion(void)
+{
+    if(BSP_IIC_WriteReg(mpu6050_addr, MPU6050_REG_INT_ENABLE, MPU6050_INT_DISABLE_ALL) != 0) {
+        return -1;
+    }
+
+    return BSP_MPU6050_Init();
+}
+
+/**
+ * @brief 打开 MPU6050 Data Ready 中断输出。
+ */
+int BSP_MPU6050_EnableDataReadyInterrupt(void)
+{
+    uint8_t int_status;
+
+    if(BSP_IIC_WriteReg(mpu6050_addr, MPU6050_REG_INT_PIN_CFG, MPU6050_INT_CFG_ACTIVE_HIGH) != 0) {
+        return -1;
+    }
+
+    if(BSP_IIC_WriteReg(mpu6050_addr, MPU6050_REG_INT_ENABLE, MPU6050_DATA_RDY_INT_ENABLE) != 0) {
+        return -2;
+    }
+
+    if(BSP_IIC_ReadRegs(mpu6050_addr, MPU6050_REG_INT_STATUS, &int_status, 1U) != 0) {
+        return -3;
+    }
+
+    return 0;
+}
+
+/**
+ * @brief 关闭 MPU6050 Data Ready 中断输出。
+ */
+int BSP_MPU6050_DisableDataReadyInterrupt(void)
+{
+    if(BSP_IIC_WriteReg(mpu6050_addr, MPU6050_REG_INT_ENABLE, MPU6050_INT_DISABLE_ALL) != 0) {
+        return -1;
+    }
 
     return 0;
 }

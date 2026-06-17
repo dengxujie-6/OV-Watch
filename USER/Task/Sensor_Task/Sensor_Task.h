@@ -1,6 +1,8 @@
 #ifndef SENSOR_TASK_H
 #define SENSOR_TASK_H
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -14,6 +16,13 @@ extern "C" {
  * @param argument FreeRTOS 任务参数，当前未使用。
  */
 void Sensor_Task(void *argument);
+
+/**
+ * @brief 在 ISR 中通知 Sensor_Task 收到一次 MPU6050 INT。
+ *
+ * 该接口只投递任务标志，不做阻塞操作，可在 EXTI 回调中调用。
+ */
+void Sensor_Task_NotifyMpuInterruptFromISR(void);
 
 #ifdef __cplusplus
 }

@@ -1477,6 +1477,11 @@
               <FilePath>../USER/HwAccess/hwaccess.c</FilePath>
             </File>
             <File>
+              <FileName>low_power.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../USER/HwAccess/low_power.c</FilePath>
+            </File>
+            <File>
               <FileName>LVGL_Task.c</FileName>
               <FileType>1</FileType>
               <FilePath>../USER/Task/GUI_Task/LVGL_Task.c</FilePath>

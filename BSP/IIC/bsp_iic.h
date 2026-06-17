@@ -16,6 +16,14 @@ extern "C" {
 void BSP_IIC_Init(void);
 
 /**
+ * @brief 反初始化软件 IIC GPIO，并清除总线已初始化状态。
+ *
+ * 该接口用于系统进入低功耗前释放 PB13/PB14；恢复后再次调用 BSP_IIC_Init()
+ * 即可重新建立软件 IIC 总线。
+ */
+void BSP_IIC_DeInit(void);
+
+/**
  * @brief 探测 7 位 I2C 设备地址是否有 ACK。
  *
  * @param dev_addr_7bit I2C 从机 7 位地址，不包含读写位。

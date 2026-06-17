@@ -59,6 +59,15 @@ void BSP_IIC_Init(void)
 }
 
 /**
+ * @brief 反初始化 PB13/PB14 软件 IIC 总线。
+ */
+void BSP_IIC_DeInit(void)
+{
+    HAL_GPIO_DeInit(GPIOB, BSP_IIC_SDA_PIN | BSP_IIC_SCL_PIN);
+    iic_initialized = 0U;
+}
+
+/**
  * @brief 探测IIC 总线上指定 7 位地址是否响应 ACK。
  */
 int BSP_IIC_Probe(uint8_t dev_addr_7bit)

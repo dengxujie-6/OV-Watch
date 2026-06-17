@@ -5,6 +5,7 @@
 #include "home_page.h"
 #include "hwaccess.h"
 #include "Key_task.h"
+#include "low_power.h"
 #include "lvgl.h"
 #include "main.h"
 #include "page_manager.h"
@@ -13,6 +14,7 @@
 #define LVGL_MEM_MONITOR_PERIOD_MS 200U
 
 static uint8_t lvgl_task_screen_on = 1U;
+static uint8_t lvgl_task_ignore_screen_key_once;
 static volatile uint32_t lvgl_task_heartbeat_tick;
 
 static void LVGL_Task_HandleKeyEvents(void);
@@ -90,19 +92,24 @@ static void LVGL_Task_HandleKeyEvents(void)
 {
     uint32_t key_events = Key_Task_FetchEvents();
 
+    if(LowPower_TakeSleepRequest() != 0U) {
+        (void)LowPower_EnterSleep();
+        lvgl_task_screen_on = 1U;
+        lvgl_task_ignore_screen_key_once = LowPower_ConsumeScreenWakeSuppress();
+        return;
+    }
+
     if((key_events & KEY_TASK_EVENT_BACK) != 0UL) {
         (void)PageManager_Pop();
     }
 
     if((key_events & KEY_TASK_EVENT_SCREEN) != 0UL) {
-        if(lvgl_task_screen_on != 0U) {
-            HwAccess.lcd.set_backlight(0U);
-            HwAccess.lcd.display_off();
-            lvgl_task_screen_on = 0U;
-        } else {
-            HwAccess.lcd.display_on();
-            HwAccess.lcd.set_backlight(100U);
+        if(lvgl_task_ignore_screen_key_once != 0U) {
+            lvgl_task_ignore_screen_key_once = 0U;
+        } else if(lvgl_task_screen_on != 0U) {
+            (void)LowPower_EnterSleep();
             lvgl_task_screen_on = 1U;
+            lvgl_task_ignore_screen_key_once = LowPower_ConsumeScreenWakeSuppress();
         }
     }
 }

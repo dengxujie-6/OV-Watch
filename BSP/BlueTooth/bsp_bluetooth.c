@@ -44,6 +44,37 @@ void BSP_BlueTooth_Init(void)
 }
 
 /**
+ * @brief 关闭蓝牙模块并反初始化 USART1、DMA 和相关 GPIO。
+ */
+void BSP_BlueTooth_DeInit(void)
+{
+    BSP_BlueTooth_Disable();
+
+    if(bluetooth_uart_initialized != 0U) {
+        (void)HAL_UART_DeInit(&bluetooth_uart_handle);
+        HAL_NVIC_DisableIRQ(BSP_BLUETOOTH_UART_IRQn);
+        __HAL_RCC_USART1_CLK_DISABLE();
+        bluetooth_uart_initialized = 0U;
+    }
+
+    if(bluetooth_dma_initialized != 0U) {
+        (void)HAL_DMA_DeInit(&bluetooth_uart_tx_dma_handle);
+        HAL_NVIC_DisableIRQ(BSP_BLUETOOTH_TX_DMA_IRQn);
+        bluetooth_dma_initialized = 0U;
+    }
+
+    HAL_GPIO_DeInit(GPIOA,
+                    BSP_BLUETOOTH_EN_GPIO_PIN |
+                    BSP_BLUETOOTH_UART_TX_GPIO_PIN |
+                    BSP_BLUETOOTH_UART_RX_GPIO_PIN);
+
+    bluetooth_gpio_initialized = 0U;
+    bluetooth_tx_busy = 0U;
+    bluetooth_tx_done = 0U;
+    bluetooth_tx_error = 0U;
+}
+
+/**
  * @brief 打开蓝牙模块电源使能脚。
  */
 void BSP_BlueTooth_Enable(void)

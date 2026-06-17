@@ -64,6 +64,37 @@ int BSP_MPU6050_Probe(void);
  */
 int BSP_MPU6050_Read(BSP_MPU6050_Data_t * data);
 
+/**
+ * @brief 配置 MPU6050 在普通运行电源状态下输出运动唤醒中断。
+ *
+ * 该接口用于 MCU 进入 Sleep 前保留 MPU6050 工作，并在检测到明显运动时通过 INT
+ * 引脚拉高唤醒 EXTI。阈值和持续时间采用项目内保守默认值，后续可按实机效果再调。
+ *
+ * @return 0 表示成功，负数表示初始化或寄存器配置失败。
+ */
+int BSP_MPU6050_EnableWakeOnMotion(void);
+
+/**
+ * @brief 清除运动唤醒中断配置并恢复常规采样模式。
+ *
+ * @return 0 表示成功，负数表示恢复失败。
+ */
+int BSP_MPU6050_DisableWakeOnMotion(void);
+
+/**
+ * @brief 打开 MPU6050 Data Ready 中断输出。
+ *
+ * @return 0 表示成功，负数表示寄存器配置失败。
+ */
+int BSP_MPU6050_EnableDataReadyInterrupt(void);
+
+/**
+ * @brief 关闭 MPU6050 Data Ready 中断输出。
+ *
+ * @return 0 表示成功，负数表示寄存器配置失败。
+ */
+int BSP_MPU6050_DisableDataReadyInterrupt(void);
+
 #ifdef __cplusplus
 }
 #endif

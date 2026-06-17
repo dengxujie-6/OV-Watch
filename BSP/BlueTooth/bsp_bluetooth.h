@@ -16,6 +16,14 @@ extern "C" {
 void BSP_BlueTooth_Init(void);
 
 /**
+ * @brief 关闭蓝牙模块并反初始化 USART1、DMA 和相关 GPIO。
+ *
+ * 该接口用于系统进入低功耗前收拢蓝牙相关资源；恢复时可再次调用
+ * BSP_BlueTooth_Init() 重新建立串口和 DMA 状态。
+ */
+void BSP_BlueTooth_DeInit(void);
+
+/**
  * @brief 打开蓝牙模块电源使能脚。
  */
 void BSP_BlueTooth_Enable(void);

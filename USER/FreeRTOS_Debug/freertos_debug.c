@@ -99,6 +99,9 @@ static void FreeRTOS_Debug_UpdateStackMonitor(void)
  */
 static void FreeRTOS_Debug_ReportTaskList(void)
 {
+#if (FREERTOS_DEBUG_TASKLIST_REPORT_ENABLE == 0U)
+    return;
+#else
 #if (configUSE_TRACE_FACILITY == 1)
     static TickType_t last_report_tick;
     static char report_buffer[FREERTOS_IDLE_REPORT_BUFFER_SIZE];
@@ -124,6 +127,7 @@ static void FreeRTOS_Debug_ReportTaskList(void)
     if(report_len != 0U) {
         (void)HwAccess.bluetooth.send_dma((const uint8_t *)report_buffer, report_len);
     }
+#endif
 #endif
 }
 
