@@ -128,9 +128,11 @@ target_include_directories(${TARGET_NAME} PRIVATE
     Core/Inc
     USER/HwAccess
     USER/Task/GUI_Task
+    USER/Task/HeartRate_Task
     USER/Task/HardWare_init_task
     USER/Task/Key_Task
     USER/Task/PROM_Test
+    USER/Task/Power_Task
     USER/Task/Sensor_Task
     USER/Task/Watchdog_Task
     USER/PageManagement
@@ -151,6 +153,7 @@ target_include_directories(${TARGET_NAME} PRIVATE
     BSP/Key
     BSP/Power
     BSP/IIC
+    BSP/EM7028
     BSP/Watchdog
     BSP/PROM
     BSP/BlueTooth

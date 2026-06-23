@@ -67,6 +67,10 @@ void HardWare_Init_Task(void *argument)
     HardwareInit_DebugStage = 3U;
     HwAccess.bluetooth.init();
     HardwareInit_DebugStage = 4U;
+    if(HwAccess.em7028.init != 0) {
+        (void)HwAccess.em7028.init();
+    }
+    HardwareInit_DebugStage = 5U;
 #if PROM_TEST_ENABLE
     HardwareInit_PromTestStatus = PROM_TEST_RUNNING;
     // PROM 自检会写 EEPROM，默认关闭；需要实机验证时在 prom_test.h 中打开宏。
@@ -76,7 +80,7 @@ void HardWare_Init_Task(void *argument)
 #else
     HardwareInit_PromTestStatus = PROM_TEST_DISABLED;
 #endif
-    HardwareInit_DebugStage = 5U;
+    HardwareInit_DebugStage = 6U;
 
     osThreadExit();
 }

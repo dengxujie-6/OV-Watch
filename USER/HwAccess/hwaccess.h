@@ -159,6 +159,27 @@ typedef struct Mpu6050struct_typedef
     uint32_t (*get_step_count)(void);  /**< 读取基于 MPU6050 加速度缓存估算的步数。*/
     void (*reset_step_count)(void);  /**< 清零 MPU6050 计步状态和步数。*/
 } obj_Mpu6050;
+/**
+ * @brief EM7028 心率缓存访问接口。
+ *
+ * 心率任务负责启动/停止采样并周期调用 update_cache()；
+ * UI 页面只读取缓存后的原始值和估算 bpm。
+ */
+typedef struct Em7028struct_typedef
+{
+    int (*init)(void);
+    int (*probe)(void);
+    int (*start)(void);
+    int (*stop)(void);
+    int (*update_cache)(void);
+    int (*get_probe_status)(void);
+    int (*read_reg)(uint8_t reg, uint8_t * value);
+    uint8_t (*get_pid)(void);
+    uint16_t (*get_raw)(void);
+    uint8_t (*get_bpm)(void);
+    uint8_t (*is_valid)(void);
+    uint8_t (*is_running)(void);
+} obj_Em7028;
 
 /**
  * @brief 顶层硬件访问对象。
@@ -176,6 +197,7 @@ typedef struct hwaccess_typedef
     obj_Aht21 aht21;  /**< AHT21 温湿度传感器缓存访问接口。*/
     obj_Lsm303dlhc lsm303dlhc;  /**< LSM303DLHC 加速度计和磁力计缓存访问接口。*/
     obj_Mpu6050 mpu6050;  /**< MPU6050 六轴 IMU 缓存访问接口。*/
+    obj_Em7028 em7028;  /**< EM7028 心率缓存访问接口。 */
 } obj_HwAccess;
 
 /**

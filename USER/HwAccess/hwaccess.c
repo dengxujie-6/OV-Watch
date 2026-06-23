@@ -1,6 +1,7 @@
 #include "hwaccess.h"
 
 #include "bsp_aht21.h"
+#include "bsp_em7028.h"
 #include "bsp_ext_watchdog.h"
 #include "bsp_bluetooth.h"
 #include "bsp_key.h"
@@ -9,6 +10,7 @@
 #include "bsp_power.h"
 #include "bsp_prom.h"
 #include "CST816T.h"
+#include "main.h"
 #include "st7789v.h"
 
 #define HWACCESS_BATTERY_MIN_MV 2750U
@@ -41,6 +43,18 @@ static void HwAccess_Mpu6050_ResetStepCount(void);
 static uint8_t HwAccess_Mpu6050_IsValid(void);
 static void HwAccess_Mpu6050_UpdateStepCounter(const BSP_MPU6050_Data_t * data);
 static uint32_t HwAccess_Mpu6050_AccelMag2(const BSP_MPU6050_Vector_t * accel);
+static int HwAccess_Em7028_Start(void);
+static int HwAccess_Em7028_Stop(void);
+static int HwAccess_Em7028_UpdateCache(void);
+static int HwAccess_Em7028_GetProbeStatus(void);
+static int HwAccess_Em7028_ReadReg(uint8_t reg, uint8_t * value);
+static uint8_t HwAccess_Em7028_GetPid(void);
+static uint16_t HwAccess_Em7028_GetRaw(void);
+static uint8_t HwAccess_Em7028_GetBpm(void);
+static uint8_t HwAccess_Em7028_IsValid(void);
+static uint8_t HwAccess_Em7028_IsRunning(void);
+static void HwAccess_Em7028_ResetState(void);
+static void HwAccess_Em7028_ProcessRawSample(uint16_t raw_value);
 
 static volatile uint16_t hwaccess_battery_voltage_mv;
 static volatile uint8_t hwaccess_battery_percent;
@@ -68,6 +82,16 @@ static uint32_t hwaccess_mpu6050_step_baseline_mg2;
 static uint8_t hwaccess_mpu6050_step_baseline_valid;
 static uint8_t hwaccess_mpu6050_step_high_state;
 static uint8_t hwaccess_mpu6050_step_refractory;
+static volatile uint16_t hwaccess_em7028_raw;
+static volatile uint8_t hwaccess_em7028_bpm;
+static volatile uint8_t hwaccess_em7028_valid;
+static volatile uint8_t hwaccess_em7028_running;
+static uint32_t hwaccess_em7028_sample_count;
+static int32_t hwaccess_em7028_dc_estimate;
+static int32_t hwaccess_em7028_amp_estimate;
+static int32_t hwaccess_em7028_prev_filtered;
+static uint32_t hwaccess_em7028_last_beat_tick;
+static uint8_t hwaccess_em7028_have_last_beat;
 
 /**
  * @brief 初始化屏幕相关硬件。
@@ -454,6 +478,142 @@ static uint32_t HwAccess_Mpu6050_AccelMag2(const BSP_MPU6050_Vector_t * accel)
     return (uint32_t)((x * x) + (y * y) + (z * z));
 }
 
+/**
+ * @brief 启动 EM7028 心率监测并重置算法状态。
+ */
+static int HwAccess_Em7028_Start(void)
+{
+    int ret = BSP_EM7028_Start();
+
+    if(ret != 0) {
+        hwaccess_em7028_running = 0U;
+        return ret;
+    }
+
+    HwAccess_Em7028_ResetState();
+    hwaccess_em7028_running = 1U;
+    return 0;
+}
+
+/**
+ * @brief 停止 EM7028 心率监测。
+ */
+static int HwAccess_Em7028_Stop(void)
+{
+    hwaccess_em7028_running = 0U;
+    return BSP_EM7028_Stop();
+}
+
+/**
+ * @brief 读取一次 EM7028 原始值并刷新原始 PPG 缓存。
+ */
+static int HwAccess_Em7028_UpdateCache(void)
+{
+    uint16_t raw_value = 0U;
+    int ret;
+
+    if(hwaccess_em7028_running == 0U) {
+        return -2;
+    }
+
+    ret = BSP_EM7028_ReadHrs1Data(&raw_value);
+    if(ret != 0) {
+        return ret;
+    }
+
+    hwaccess_em7028_raw = raw_value;
+    HwAccess_Em7028_ProcessRawSample(raw_value);
+    return 0;
+}
+
+/**
+ * @brief 获取最近一次 EM7028 地址探测结果。
+ */
+static int HwAccess_Em7028_GetProbeStatus(void)
+{
+    return BSP_EM7028_GetLastProbeStatus();
+}
+
+/**
+ * @brief 读取一个 EM7028 寄存器原始字节。
+ */
+static int HwAccess_Em7028_ReadReg(uint8_t reg, uint8_t * value)
+{
+    return BSP_EM7028_ReadRegister(reg, value);
+}
+
+/**
+ * @brief 获取最近一次读到的 EM7028 PID 原始字节。
+ */
+static uint8_t HwAccess_Em7028_GetPid(void)
+{
+    return BSP_EM7028_GetLastPid();
+}
+
+/**
+ * @brief 获取最近一次 EM7028 原始 ADC 值。
+ */
+static uint16_t HwAccess_Em7028_GetRaw(void)
+{
+    return hwaccess_em7028_raw;
+}
+
+/**
+ * @brief 获取最近一次心率值接口占位。
+ *
+ * 当前版本只输出原始 PPG 数据，不进行 BPM 计算。
+ */
+static uint8_t HwAccess_Em7028_GetBpm(void)
+{
+    return 0U;
+}
+
+/**
+ * @brief 判断 EM7028 心率缓存是否有效。
+ */
+static uint8_t HwAccess_Em7028_IsValid(void)
+{
+    return hwaccess_em7028_valid;
+}
+
+/**
+ * @brief 判断当前是否正在执行 EM7028 心率监测。
+ */
+static uint8_t HwAccess_Em7028_IsRunning(void)
+{
+    return hwaccess_em7028_running;
+}
+
+/**
+ * @brief 清空 EM7028 原始 PPG 缓存状态。
+ */
+static void HwAccess_Em7028_ResetState(void)
+{
+    hwaccess_em7028_raw = 0U;
+    hwaccess_em7028_bpm = 0U;
+    hwaccess_em7028_valid = 0U;
+    hwaccess_em7028_sample_count = 0UL;
+    hwaccess_em7028_dc_estimate = 0;
+    hwaccess_em7028_amp_estimate = 0;
+    hwaccess_em7028_prev_filtered = 0;
+    hwaccess_em7028_last_beat_tick = 0UL;
+    hwaccess_em7028_have_last_beat = 0U;
+}
+
+/**
+ * @brief 记录一次原始 PPG 采样已更新。
+ *
+ * 当前版本只负责保留 EM7028 的原始 ADC/PPG 值，
+ * 不做峰值检测、滤波或 BPM 解算。
+ */
+static void HwAccess_Em7028_ProcessRawSample(uint16_t raw_value)
+{
+    (void)raw_value;
+
+    hwaccess_em7028_sample_count++;
+    hwaccess_em7028_valid = 1U;
+}
+
 obj_HwAccess HwAccess = {
     .lcd = {
         .init = HwAccess_Lcd_Init,
@@ -525,5 +685,19 @@ obj_HwAccess HwAccess = {
         .get_step_count = HwAccess_Mpu6050_GetStepCount,
         .reset_step_count = HwAccess_Mpu6050_ResetStepCount,
         .is_valid = HwAccess_Mpu6050_IsValid,
+    },
+    .em7028 = {
+        .init = BSP_EM7028_Init,
+        .probe = BSP_EM7028_Probe,
+        .start = HwAccess_Em7028_Start,
+        .stop = HwAccess_Em7028_Stop,
+        .update_cache = HwAccess_Em7028_UpdateCache,
+        .get_probe_status = HwAccess_Em7028_GetProbeStatus,
+        .read_reg = HwAccess_Em7028_ReadReg,
+        .get_pid = HwAccess_Em7028_GetPid,
+        .get_raw = HwAccess_Em7028_GetRaw,
+        .get_bpm = HwAccess_Em7028_GetBpm,
+        .is_valid = HwAccess_Em7028_IsValid,
+        .is_running = HwAccess_Em7028_IsRunning,
     },
 };
