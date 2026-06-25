@@ -19,14 +19,14 @@
 #define LOW_POWER_EXTI_IRQ_PRIORITY      5U
 
 extern osThreadId_t keyTaskHandle;
+extern osThreadId_t lvglTaskHandle;
 extern osThreadId_t sensorTaskHandle;
 extern osThreadId_t watchdogTaskHandle;
 
 static volatile uint32_t low_power_wake_flags;
 static volatile uint32_t low_power_last_wake_flags;
 static volatile uint8_t low_power_sleeping;
-static volatile uint8_t low_power_sleep_requested;
-static volatile uint8_t low_power_ignore_screen_key_once;
+static volatile uint8_t low_power_need_wake_refresh;
 
 static void LowPower_ConfigWakeupPins(void);
 static void LowPower_PreparePeripherals(void);
@@ -36,6 +36,8 @@ static void LowPower_ResumeTasks(void);
 
 /**
  * @brief 在 EXTI 回调中记录唤醒源。
+ *
+ * @param gpio_pin 进入中断的 GPIO 引脚号。
  */
 void LowPower_HandleWakeupIrq(uint16_t gpio_pin)
 {
@@ -45,7 +47,6 @@ void LowPower_HandleWakeupIrq(uint16_t gpio_pin)
 
     if(gpio_pin == LOW_POWER_WAKE_KEY2_PIN) {
         low_power_wake_flags |= LOW_POWER_WAKE_SOURCE_KEY2;
-        low_power_ignore_screen_key_once = 1U;
     } else if(gpio_pin == LOW_POWER_WAKE_MPU_PIN) {
         low_power_wake_flags |= LOW_POWER_WAKE_SOURCE_MPU;
     }
@@ -53,6 +54,8 @@ void LowPower_HandleWakeupIrq(uint16_t gpio_pin)
 
 /**
  * @brief 收拢非唤醒外设并进入 Sleep。
+ *
+ * @return 本次唤醒源位图。
  */
 uint32_t LowPower_EnterSleep(void)
 {
@@ -84,26 +87,9 @@ uint32_t LowPower_EnterSleep(void)
 }
 
 /**
- * @brief 请求 GUI/LVGL 任务执行一次 Sleep。
- */
-void LowPower_RequestSleep(void)
-{
-    low_power_sleep_requested = 1U;
-}
-
-/**
- * @brief 读取并清除一次 Sleep 请求标志。
- */
-uint8_t LowPower_TakeSleepRequest(void)
-{
-    uint8_t requested = low_power_sleep_requested;
-
-    low_power_sleep_requested = 0U;
-    return requested;
-}
-
-/**
  * @brief 读取并清除最近一次唤醒源位图。
+ *
+ * @return 组合 LOW_POWER_WAKE_SOURCE_xxx。
  */
 uint32_t LowPower_ConsumeWakeFlags(void)
 {
@@ -113,15 +99,12 @@ uint32_t LowPower_ConsumeWakeFlags(void)
     return wake_flags;
 }
 
-/**
- * @brief 读取并清除一次性 Screen 键忽略标志。
- */
-uint8_t LowPower_ConsumeScreenWakeSuppress(void)
+uint8_t LowPower_TakeWakeRefreshRequest(void)
 {
-    uint8_t suppress = low_power_ignore_screen_key_once;
+    uint8_t need_refresh = low_power_need_wake_refresh;
 
-    low_power_ignore_screen_key_once = 0U;
-    return suppress;
+    low_power_need_wake_refresh = 0U;
+    return need_refresh;
 }
 
 /**
@@ -151,10 +134,17 @@ static void LowPower_ConfigWakeupPins(void)
 }
 
 /**
- * @brief 睡前暂停不需要运行的任务。
+ * @brief 睡前暂停会访问显示和采样链路的任务。
+ *
+ * Sleep 现在由独立的 Power_Task 触发，因此这里需要额外挂起 LVGL 任务，
+ * 避免 LCD 已经去初始化后 GUI 任务仍继续访问显示驱动。
  */
 static void LowPower_SuspendTasks(void)
 {
+    if(lvglTaskHandle != NULL) {
+        (void)osThreadSuspend(lvglTaskHandle);
+    }
+
     if(sensorTaskHandle != NULL) {
         (void)osThreadSuspend(sensorTaskHandle);
     }
@@ -173,6 +163,10 @@ static void LowPower_SuspendTasks(void)
  */
 static void LowPower_ResumeTasks(void)
 {
+    if(lvglTaskHandle != NULL) {
+        (void)osThreadResume(lvglTaskHandle);
+    }
+
     if(keyTaskHandle != NULL) {
         (void)osThreadResume(keyTaskHandle);
     }
@@ -227,6 +221,7 @@ static void LowPower_ResumePeripherals(void)
     HwAccess.key.init();
     HwAccess.bluetooth.init();
     HwAccess.lcd.init();
-    HwAccess.lcd.set_backlight(100U);
+    HwAccess.lcd.set_backlight(10U);
     HwAccess.watchdog.enable();
+    low_power_need_wake_refresh = 1U;
 }

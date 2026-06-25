@@ -3,9 +3,9 @@
 #include "cmsis_os2.h"
 #include "debug_overlay.h"
 #include "home_page.h"
-#include "hwaccess.h"
 #include "Key_task.h"
 #include "low_power.h"
+#include "Power_Task.h"
 #include "lvgl.h"
 #include "main.h"
 #include "page_manager.h"
@@ -13,11 +13,10 @@
 #define LVGL_TASK_DELAY_MS 2U
 #define LVGL_MEM_MONITOR_PERIOD_MS 200U
 
-static uint8_t lvgl_task_screen_on = 1U;
-static uint8_t lvgl_task_ignore_screen_key_once;
 static volatile uint32_t lvgl_task_heartbeat_tick;
 
 static void LVGL_Task_HandleKeyEvents(void);
+static void LVGL_Task_HandleWakeRefresh(void);
 static void LVGL_Task_UpdateMemMonitor(void);
 
 /**
@@ -63,6 +62,7 @@ void LVGL_Task(void *argument)
     LVGL_Task_UpdateMemMonitor();
 
     for(;;) {
+        LVGL_Task_HandleWakeRefresh();
         LVGL_Task_HandleKeyEvents();
         // 周期执行 LVGL 定时器处理函数，驱动动画、输入和刷新流程。
         (void)lv_timer_handler();
@@ -92,25 +92,12 @@ static void LVGL_Task_HandleKeyEvents(void)
 {
     uint32_t key_events = Key_Task_FetchEvents();
 
-    if(LowPower_TakeSleepRequest() != 0U) {
-        (void)LowPower_EnterSleep();
-        lvgl_task_screen_on = 1U;
-        lvgl_task_ignore_screen_key_once = LowPower_ConsumeScreenWakeSuppress();
-        return;
+    if(key_events != 0UL) {
+        Power_Task_NotifyActivity();
     }
 
     if((key_events & KEY_TASK_EVENT_BACK) != 0UL) {
         (void)PageManager_Pop();
-    }
-
-    if((key_events & KEY_TASK_EVENT_SCREEN) != 0UL) {
-        if(lvgl_task_ignore_screen_key_once != 0U) {
-            lvgl_task_ignore_screen_key_once = 0U;
-        } else if(lvgl_task_screen_on != 0U) {
-            (void)LowPower_EnterSleep();
-            lvgl_task_screen_on = 1U;
-            lvgl_task_ignore_screen_key_once = LowPower_ConsumeScreenWakeSuppress();
-        }
     }
 }
 
@@ -120,6 +107,22 @@ static void LVGL_Task_HandleKeyEvents(void)
  * lv_mem_monitor() 会遍历 LVGL 内部堆块，只允许在 GUI/LVGL 任务中调用。
  * 展开的 uint32_t 变量用于在 Keil Watch 窗口里直接观察关键水位。
  */
+static void LVGL_Task_HandleWakeRefresh(void)
+{
+    lv_obj_t * active_screen;
+
+    if(LowPower_TakeWakeRefreshRequest() == 0U) {
+        return;
+    }
+
+    active_screen = lv_screen_active();
+    if(active_screen != NULL) {
+        lv_obj_invalidate(active_screen);
+    }
+
+    lv_refr_now(NULL);
+}
+
 static void LVGL_Task_UpdateMemMonitor(void)
 {
     const uint32_t now_ms = HAL_GetTick();

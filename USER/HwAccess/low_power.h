@@ -25,30 +25,12 @@ void LowPower_HandleWakeupIrq(uint16_t gpio_pin);
 uint32_t LowPower_EnterSleep(void);
 
 /**
- * @brief 请求 GUI/LVGL 任务在安全上下文中执行一次 Sleep。
- */
-void LowPower_RequestSleep(void);
-
-/**
- * @brief 读取并清除一次 Sleep 请求标志。
- *
- * @return 1 表示有新的 Sleep 请求，0 表示当前没有待处理请求。
- */
-uint8_t LowPower_TakeSleepRequest(void);
-
-/**
  * @brief 读取并清除最近一次 Sleep 返回后的唤醒源位图。
  *
  * @return 组合 LOW_POWER_WAKE_SOURCE_xxx；0 表示没有新的唤醒结果。
  */
 uint32_t LowPower_ConsumeWakeFlags(void);
-
-/**
- * @brief 读取并清除“唤醒后忽略一次 Screen 键事件”标志。
- *
- * @return 1 表示应忽略一次 Screen 键事件，0 表示无需忽略。
- */
-uint8_t LowPower_ConsumeScreenWakeSuppress(void);
+uint8_t LowPower_TakeWakeRefreshRequest(void);
 
 #ifdef __cplusplus
 }

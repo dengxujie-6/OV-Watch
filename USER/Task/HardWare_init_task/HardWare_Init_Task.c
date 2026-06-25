@@ -63,9 +63,9 @@ void HardWare_Init_Task(void *argument)
     HardwareInit_DebugStage = 1U;
     HwAccess.power.open();
     HardwareInit_DebugStage = 2U;
-    HwAccess.lcd.init();
-    HardwareInit_DebugStage = 3U;
     HwAccess.bluetooth.init();
+    HardwareInit_DebugStage = 3U;
+    HwAccess.lcd.init();
     HardwareInit_DebugStage = 4U;
     if(HwAccess.em7028.init != 0) {
         (void)HwAccess.em7028.init();

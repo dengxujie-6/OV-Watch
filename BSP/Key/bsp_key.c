@@ -1,4 +1,4 @@
-#include "bsp_key.h"
+﻿#include "bsp_key.h"
 
 #include "main.h"
 
@@ -10,11 +10,10 @@
 #define BSP_KEY_SCREEN_GPIO_PIN       GPIO_PIN_4
 #define BSP_KEY_SCREEN_PRESSED_LEVEL  GPIO_PIN_SET
 
+
 /**
- * @brief 初始化板载按键 GPIO。
- *
- * KEY_BACK 使用 PA5，上拉输入，按下为低电平；KEY_SCREEN 使用 PA4，下拉输入，按下为高电平。
- */
+ * @brief 鍒濆鍖栨澘杞芥寜閿?GPIO銆? *
+ * KEY_BACK 浣跨敤 PA5锛屼笂鎷夎緭鍏ワ紝鎸変笅涓轰綆鐢靛钩锛汯EY_SCREEN 浣跨敤 PA4锛屼笅鎷夎緭鍏ワ紝鎸変笅涓洪珮鐢靛钩锛? */
 void BSP_Key_Init(void)
 {
     GPIO_InitTypeDef GPIO_InitStruct = {0};
@@ -35,11 +34,8 @@ void BSP_Key_Init(void)
 }
 
 /**
- * @brief 读取指定板载按键是否按下。
- *
- * @param key 按键逻辑编号。
- * @return 1 表示按下，0 表示未按下或编号无效。
- */
+ * @brief 璇诲彇鎸囧畾鏉胯浇鎸夐敭鏄惁鎸変笅銆? *
+ * @param key 鎸夐敭閫昏緫缂栧彿銆? * @return 1 琛ㄧず鎸変笅锛? 琛ㄧず鏈寜涓嬫垨缂栧彿鏃犳晥銆? */
 uint8_t BSP_Key_IsPressed(BSP_KeyId_t key)
 {
     switch(key) {

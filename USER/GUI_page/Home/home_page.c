@@ -11,6 +11,7 @@
 
 #include <string.h>
 
+#include "dropdown_menu_page.h"
 #include "hwaccess.h"
 #include "menu_page.h"
 #include "my_icon_fonts.h"
@@ -38,6 +39,9 @@ extern const lv_font_t my_font_source_han_38;
 #define HOME_MENU_DRAG_TIMER_MS 4U
 // 慢速滑动时触摸芯片可能短暂报松手，连续确认后才触发回弹/进入。
 #define HOME_MENU_RELEASE_CONFIRM_COUNT 3U
+#define HOME_DROPDOWN_DRAG_COMMIT_Y 72
+#define HOME_DROPDOWN_DRAG_START_Y 10
+#define HOME_DROPDOWN_EDGE_LIMIT_Y 36
 #define HOME_BATTERY_REFRESH_MS 1000U
 #define HOME_STEP_TARGET        15000U
 
@@ -66,35 +70,41 @@ struct home_page {
     lv_obj_t * temperature_label; /**< 温度卡片数值，root 删除时自动删除。 */
     lv_obj_t * humidity_label; /**< 湿度卡片数值，root 删除时自动删除。 */
     lv_obj_t * menu_preview; /**< 左划跟手阶段的临时菜单预览层，root 删除时自动删除。 */
+    lv_obj_t * dropdown_preview; /**< 下滑阶段的临时快捷菜单预览层，root 删除时自动删除。 */
     lv_timer_t * drag_timer; /**< 主页激活时的触摸轮询定时器，由本页面删除。 */
     lv_timer_t * battery_timer; /**< 低频刷新主页缓存数据显示的 LVGL 定时器。 */
     lv_point_t press_point; /**< 本次触摸按下坐标，用于计算横向拖动距离。 */
     int32_t drag_x;         /**< 当前左划距离，单位为屏幕像素。 */
+    int32_t drag_y;         /**< 当前下滑距离，单位为屏幕像素。 */
     uint8_t release_count;  /**< 连续检测到松手的次数，用于过滤触摸采样抖动。 */
     bool touch_pressed;     /**< 上一次轮询时 pointer 是否处于按下状态。 */
     bool drag_active;       /**< 已进入左划跟手状态。 */
+    bool dropdown_drag_active; /**< 已进入下滑跟手状态。 */
     bool transition_active; /**< 松手后的收尾动画正在运行。 */
 };
 
 static home_page_t * s_home_page;
 static const char * s_home_menu_preview_titles[] = {
     "日历", "计算器", "秒表", "动画", "卡包", "运动", "心率",
-    "血氧", "环境", "指南针", "游戏", "设置", "关于",
+    "血氧", "环境", "游戏", "设置", "关于",
 };
 static const char * s_home_menu_preview_icons[] = {
     LV_SYMBOL_LIST, LV_SYMBOL_SETTINGS, LV_SYMBOL_REFRESH, LV_SYMBOL_PLAY,
     LV_SYMBOL_DIRECTORY, LV_SYMBOL_UP, LV_SYMBOL_TINT, LV_SYMBOL_AUDIO,
-    LV_SYMBOL_HOME, LV_SYMBOL_DRIVE, LV_SYMBOL_PLAY, LV_SYMBOL_SETTINGS,
-    LV_SYMBOL_COPY,
+    LV_SYMBOL_HOME, LV_SYMBOL_PLAY, LV_SYMBOL_SETTINGS, LV_SYMBOL_COPY,
 };
 static const uint32_t s_home_menu_preview_icon_colors[] = {
     0xff6b6b, 0xffa94d, 0xb197fc, 0x4dabf7, 0xffd43b, 0x51cf66, 0xff8787,
-    0x74c0fc, 0x63e6be, 0x91a7ff, 0xffc078, 0xadb5bd, 0xdee2e6,
+    0x74c0fc, 0x63e6be, 0xffc078, 0xadb5bd, 0xdee2e6,
 };
 
 static lv_indev_t * home_pointer_indev_get(void);
 static void home_menu_drag_poll(home_page_t * page, lv_indev_t * indev);
 static void home_menu_drag_timer_cb(lv_timer_t * timer);
+static void home_dropdown_preview_create(home_page_t * page);
+static void home_dropdown_preview_set_drag(home_page_t * page, int32_t drag_y);
+static void home_dropdown_preview_hide(home_page_t * page);
+static void home_dropdown_drag_finish(home_page_t * page, bool commit);
 static void home_battery_timer_cb(lv_timer_t * timer);
 static void home_battery_update(home_page_t * page);
 static void home_steps_update(home_page_t * page);
@@ -129,6 +139,14 @@ static void home_menu_preview_delete(home_page_t * page)
     page->menu_preview = NULL;
 }
 
+static void home_dropdown_preview_delete(home_page_t * page)
+{
+    if((page == NULL) || (page->dropdown_preview == NULL)) return;
+
+    lv_obj_del(page->dropdown_preview);
+    page->dropdown_preview = NULL;
+}
+
 static void home_page_reset_root_pos(home_page_t * page)
 {
     if((page == NULL) || (page->root == NULL)) return;
@@ -136,6 +154,56 @@ static void home_page_reset_root_pos(home_page_t * page)
     // 禁用根对象滚动后仍主动复位，避免取消左划时残留输入系统造成的位置偏移。
     lv_obj_set_pos(page->root, 0, 0);
     lv_obj_scroll_to(page->root, 0, 0, LV_ANIM_OFF);
+}
+
+static void home_dropdown_anim_ready_cb(lv_anim_t * a)
+{
+    home_page_t * page = (home_page_t *)lv_anim_get_user_data(a);
+
+    if(page == NULL) return;
+
+    home_page_reset_root_pos(page);
+    home_dropdown_preview_hide(page);
+    page->dropdown_drag_active = false;
+    page->transition_active = false;
+    page->touch_pressed = false;
+    page->release_count = 0U;
+    page->drag_y = 0;
+    (void)PageManager_Push(&DropdownMenuPage);
+}
+
+static void home_dropdown_cancel_anim_ready_cb(lv_anim_t * a)
+{
+    home_page_t * page = (home_page_t *)lv_anim_get_user_data(a);
+
+    if(page == NULL) return;
+
+    home_page_reset_root_pos(page);
+    home_dropdown_preview_hide(page);
+    page->dropdown_drag_active = false;
+    page->transition_active = false;
+    page->touch_pressed = false;
+    page->release_count = 0U;
+    page->drag_y = 0;
+}
+
+static void home_dropdown_preview_anim_start(home_page_t * page,
+                                             int32_t target_y,
+                                             lv_anim_completed_cb_t completed_cb)
+{
+    lv_anim_t anim;
+
+    if((page == NULL) || (page->dropdown_preview == NULL)) return;
+
+    page->transition_active = true;
+    lv_anim_init(&anim);
+    lv_anim_set_var(&anim, page->dropdown_preview);
+    lv_anim_set_values(&anim, lv_obj_get_y(page->dropdown_preview), target_y);
+    lv_anim_set_duration(&anim, 120);
+    lv_anim_set_exec_cb(&anim, (lv_anim_exec_xcb_t)lv_obj_set_y);
+    lv_anim_set_user_data(&anim, page);
+    lv_anim_set_completed_cb(&anim, completed_cb);
+    lv_anim_start(&anim);
 }
 
 static lv_obj_t * home_menu_preview_item_create(lv_obj_t * parent, size_t index)
@@ -210,6 +278,52 @@ static void home_menu_preview_create(home_page_t * page)
     }
 }
 
+static void home_dropdown_preview_create(home_page_t * page)
+{
+    if((page == NULL) || (page->root == NULL) || (page->dropdown_preview != NULL)) return;
+
+    page->dropdown_preview = lv_obj_create(page->root);
+    lv_obj_remove_style_all(page->dropdown_preview);
+    lv_obj_set_size(page->dropdown_preview, HOME_SCREEN_W, 132);
+    lv_obj_set_pos(page->dropdown_preview, 0, -132);
+    lv_obj_set_style_bg_color(page->dropdown_preview, lv_color_hex(0x101820), 0);
+    lv_obj_set_style_bg_opa(page->dropdown_preview, LV_OPA_90, 0);
+    lv_obj_set_style_border_width(page->dropdown_preview, 0, 0);
+    lv_obj_set_style_radius(page->dropdown_preview, 0, 0);
+    lv_obj_set_style_pad_all(page->dropdown_preview, 16, 0);
+    lv_obj_clear_flag(page->dropdown_preview, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_clear_flag(page->dropdown_preview, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(page->dropdown_preview, LV_OBJ_FLAG_HIDDEN);
+
+    lv_obj_t * title = lv_label_create(page->dropdown_preview);
+    lv_label_set_text(title, "快捷菜单");
+    lv_obj_set_style_text_font(title, &my_font_source_han_20, 0);
+    lv_obj_set_style_text_color(title, lv_color_white(), 0);
+    lv_obj_align(title, LV_ALIGN_TOP_LEFT, 0, 0);
+
+    lv_obj_t * panel = lv_obj_create(page->dropdown_preview);
+    lv_obj_set_size(panel, HOME_SCREEN_W - 32, 64);
+    lv_obj_align(panel, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_set_style_bg_color(panel, lv_color_hex(0x17232d), 0);
+    lv_obj_set_style_bg_opa(panel, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(panel, 0, 0);
+    lv_obj_set_style_radius(panel, 18, 0);
+    lv_obj_clear_flag(panel, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_clear_flag(panel, LV_OBJ_FLAG_CLICKABLE);
+
+    lv_obj_t * icon = lv_label_create(panel);
+    lv_label_set_text(icon, LV_SYMBOL_BLUETOOTH);
+    lv_obj_set_style_text_font(icon, &my_font_source_han_20, 0);
+    lv_obj_set_style_text_color(icon, lv_color_hex(0x4eb6ff), 0);
+    lv_obj_align(icon, LV_ALIGN_LEFT_MID, 14, 0);
+
+    lv_obj_t * label = lv_label_create(panel);
+    lv_label_set_text(label, "蓝牙");
+    lv_obj_set_style_text_font(label, &my_font_source_han_20, 0);
+    lv_obj_set_style_text_color(label, lv_color_white(), 0);
+    lv_obj_align(label, LV_ALIGN_LEFT_MID, 48, 0);
+}
+
 static void home_menu_preview_set_drag(home_page_t * page, int32_t drag_x)
 {
     int32_t visual_drag_x;
@@ -232,6 +346,26 @@ static void home_menu_preview_hide(home_page_t * page)
 
     lv_obj_set_x(page->menu_preview, HOME_SCREEN_W);
     lv_obj_add_flag(page->menu_preview, LV_OBJ_FLAG_HIDDEN);
+}
+
+static void home_dropdown_preview_set_drag(home_page_t * page, int32_t drag_y)
+{
+    if((page == NULL) || (page->dropdown_preview == NULL)) return;
+
+    if(drag_y < 0) drag_y = 0;
+    if(drag_y > 132) drag_y = 132;
+    page->drag_y = drag_y;
+
+    lv_obj_clear_flag(page->dropdown_preview, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_y(page->dropdown_preview, drag_y - 132);
+}
+
+static void home_dropdown_preview_hide(home_page_t * page)
+{
+    if((page == NULL) || (page->dropdown_preview == NULL)) return;
+
+    lv_obj_set_y(page->dropdown_preview, -132);
+    lv_obj_add_flag(page->dropdown_preview, LV_OBJ_FLAG_HIDDEN);
 }
 
 static void home_menu_anim_ready_cb(lv_anim_t * a)
@@ -293,10 +427,22 @@ static void home_menu_drag_finish(home_page_t * page, bool commit)
     }
 }
 
+static void home_dropdown_drag_finish(home_page_t * page, bool commit)
+{
+    if((page == NULL) || (page->dropdown_preview == NULL) || page->transition_active) return;
+
+    if(commit) {
+        home_dropdown_preview_anim_start(page, 0, home_dropdown_anim_ready_cb);
+    } else {
+        home_dropdown_preview_anim_start(page, -132, home_dropdown_cancel_anim_ready_cb);
+    }
+}
+
 static void home_menu_drag_poll(home_page_t * page, lv_indev_t * indev)
 {
     lv_point_t point;
     int32_t drag_x;
+    int32_t drag_y;
     bool pressed;
 
     if((page == NULL) || (page->root == NULL) || (indev == NULL)) return;
@@ -309,18 +455,36 @@ static void home_menu_drag_poll(home_page_t * page, lv_indev_t * indev)
     if(pressed && !page->touch_pressed) {
         page->press_point = point;
         page->drag_x = 0;
+        page->drag_y = 0;
         page->drag_active = false;
+        page->dropdown_drag_active = false;
         page->touch_pressed = true;
         page->release_count = 0U;
         home_page_reset_root_pos(page);
         home_menu_preview_create(page);
         home_menu_preview_hide(page);
+        home_dropdown_preview_create(page);
+        home_dropdown_preview_hide(page);
         return;
     }
 
     if(pressed) {
         page->release_count = 0U;
         drag_x = page->press_point.x - point.x;
+        drag_y = point.y - page->press_point.y;
+
+        if(!page->dropdown_drag_active &&
+           !page->drag_active &&
+           (page->press_point.y <= HOME_DROPDOWN_EDGE_LIMIT_Y) &&
+           ((drag_y >= HOME_DROPDOWN_DRAG_START_Y) || page->dropdown_drag_active)) {
+            page->dropdown_drag_active = true;
+        }
+
+        if(page->dropdown_drag_active) {
+            home_dropdown_preview_set_drag(page, drag_y);
+            return;
+        }
+
         if((drag_x >= HOME_MENU_DRAG_START_X) || page->drag_active) {
             page->drag_active = true;
             home_menu_preview_set_drag(page, drag_x);
@@ -336,11 +500,14 @@ static void home_menu_drag_poll(home_page_t * page, lv_indev_t * indev)
 
         page->touch_pressed = false;
         page->release_count = 0U;
-        if(page->drag_active) {
+        if(page->dropdown_drag_active) {
+            home_dropdown_drag_finish(page, page->drag_y >= HOME_DROPDOWN_DRAG_COMMIT_Y);
+        } else if(page->drag_active) {
             home_menu_drag_finish(page, page->drag_x >= HOME_MENU_DRAG_COMMIT_X);
         } else {
             home_page_reset_root_pos(page);
             home_menu_preview_hide(page);
+            home_dropdown_preview_hide(page);
         }
     }
 }
@@ -680,6 +847,7 @@ home_page_t * home_page_create(void)
                                                    HOME_COLOR_BLUE, "--%", "HUMID");
     home_sensor_update(page);
     home_menu_preview_create(page);
+    home_dropdown_preview_create(page);
 
     page->drag_timer = lv_timer_create(home_menu_drag_timer_cb,
                                        HOME_MENU_DRAG_TIMER_MS,
@@ -703,6 +871,7 @@ void home_page_destroy(home_page_t * page)
         page->battery_timer = NULL;
     }
     home_menu_preview_delete(page);
+    home_dropdown_preview_delete(page);
     if(page->root) lv_obj_del(page->root);
     memset(page, 0, sizeof(*page));
 }

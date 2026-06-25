@@ -31,7 +31,7 @@
 #endif
 
 #ifndef FREERTOS_DEBUG_TASKLIST_REPORT_ENABLE
-#define FREERTOS_DEBUG_TASKLIST_REPORT_ENABLE 0U
+#define FREERTOS_DEBUG_TASKLIST_REPORT_ENABLE 1U
 #endif
 
 #ifndef FREERTOS_DEBUG_MAX_TASKS
@@ -56,10 +56,10 @@ extern volatile FreeRTOS_DebugTaskInfo_t g_freertos_debug_tasks[FREERTOS_DEBUG_M
 extern volatile uint32_t g_freertos_debug_task_count;
 
 uint8_t FreeRTOS_Debug_RegisterTask(TaskHandle_t task_handle, const char *task_name);
-osThreadId_t FreeRTOS_Debug_CreateMonitorTask(void);
+void FreeRTOS_Debug_Poll(void);
 #else
 #define FreeRTOS_Debug_RegisterTask(task_handle, task_name) ((uint8_t)0U)
-#define FreeRTOS_Debug_CreateMonitorTask()                  ((osThreadId_t)NULL)
+#define FreeRTOS_Debug_Poll()                               do { } while(0)
 #endif
 
 #endif /* FREERTOS_DEBUG_H */
