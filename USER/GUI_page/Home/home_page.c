@@ -86,16 +86,17 @@ struct home_page {
 static home_page_t * s_home_page;
 static const char * s_home_menu_preview_titles[] = {
     "日历", "计算器", "秒表", "动画", "卡包", "运动", "心率",
-    "血氧", "环境", "游戏", "设置", "关于",
+    "血氧", "环境", "指南针", "游戏", "设置", "关于",
 };
 static const char * s_home_menu_preview_icons[] = {
     LV_SYMBOL_LIST, LV_SYMBOL_SETTINGS, LV_SYMBOL_REFRESH, LV_SYMBOL_PLAY,
     LV_SYMBOL_DIRECTORY, LV_SYMBOL_UP, LV_SYMBOL_TINT, LV_SYMBOL_AUDIO,
-    LV_SYMBOL_HOME, LV_SYMBOL_PLAY, LV_SYMBOL_SETTINGS, LV_SYMBOL_COPY,
+    LV_SYMBOL_HOME, LV_SYMBOL_DRIVE, LV_SYMBOL_PLAY, LV_SYMBOL_SETTINGS,
+    LV_SYMBOL_COPY,
 };
 static const uint32_t s_home_menu_preview_icon_colors[] = {
     0xff6b6b, 0xffa94d, 0xb197fc, 0x4dabf7, 0xffd43b, 0x51cf66, 0xff8787,
-    0x74c0fc, 0x63e6be, 0xffc078, 0xadb5bd, 0xdee2e6,
+    0x74c0fc, 0x63e6be, 0x91a7ff, 0xffc078, 0xadb5bd, 0xdee2e6,
 };
 
 static lv_indev_t * home_pointer_indev_get(void);
