@@ -14,6 +14,7 @@ extern "C" {
  * 并把 PA3 置为高电平。
  */
 void BSP_Power_Open(void);
+void BSP_Power_Close(void);
 
 /**
  * @brief 读取充电检测引脚状态。

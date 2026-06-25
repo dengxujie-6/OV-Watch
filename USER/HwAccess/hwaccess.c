@@ -1,6 +1,7 @@
 #include "hwaccess.h"
 
 #include "bsp_aht21.h"
+#include "bsp_iic.h"
 #include "bsp_em7028.h"
 #include "bsp_ext_watchdog.h"
 #include "bsp_bluetooth.h"
@@ -45,10 +46,13 @@ static void HwAccess_Mpu6050_UpdateStepCounter(const BSP_MPU6050_Data_t * data);
 static uint32_t HwAccess_Mpu6050_AccelMag2(const BSP_MPU6050_Vector_t * accel);
 static int HwAccess_Em7028_Start(void);
 static int HwAccess_Em7028_Stop(void);
+static int HwAccess_Em7028_ReadRaw(uint16_t * value);
 static int HwAccess_Em7028_UpdateCache(void);
 static int HwAccess_Em7028_GetProbeStatus(void);
 static int HwAccess_Em7028_ReadReg(uint8_t reg, uint8_t * value);
 static uint8_t HwAccess_Em7028_GetPid(void);
+static int HwAccess_Em7028_GetLastI2cStatus(void);
+static uint32_t HwAccess_Em7028_GetLastI2cError(void);
 static uint16_t HwAccess_Em7028_GetRaw(void);
 static uint8_t HwAccess_Em7028_GetBpm(void);
 static uint8_t HwAccess_Em7028_IsValid(void);
@@ -505,14 +509,14 @@ static int HwAccess_Em7028_Stop(void)
 }
 
 /**
- * @brief 读取一次 EM7028 原始值并刷新原始 PPG 缓存。
+ * @brief 读取一次 EM7028 原始值，并同步更新 HwAccess 缓存。
  */
-static int HwAccess_Em7028_UpdateCache(void)
+static int HwAccess_Em7028_ReadRaw(uint16_t * value)
 {
     uint16_t raw_value = 0U;
     int ret;
 
-    if(hwaccess_em7028_running == 0U) {
+    if((value == NULL) || (hwaccess_em7028_running == 0U)) {
         return -2;
     }
 
@@ -522,8 +526,19 @@ static int HwAccess_Em7028_UpdateCache(void)
     }
 
     hwaccess_em7028_raw = raw_value;
+    *value = raw_value;
     HwAccess_Em7028_ProcessRawSample(raw_value);
     return 0;
+}
+
+/**
+ * @brief 读取一次 EM7028 原始值并刷新原始 PPG 缓存。
+ */
+static int HwAccess_Em7028_UpdateCache(void)
+{
+    uint16_t raw_value = 0U;
+
+    return HwAccess_Em7028_ReadRaw(&raw_value);
 }
 
 /**
@@ -548,6 +563,22 @@ static int HwAccess_Em7028_ReadReg(uint8_t reg, uint8_t * value)
 static uint8_t HwAccess_Em7028_GetPid(void)
 {
     return BSP_EM7028_GetLastPid();
+}
+
+/**
+ * @brief 获取最近一次 EM7028 访问对应的软件 IIC HAL 状态。
+ */
+static int HwAccess_Em7028_GetLastI2cStatus(void)
+{
+    return (int)BSP_IIC_GetLastHalStatus();
+}
+
+/**
+ * @brief 获取最近一次 EM7028 访问对应的软件 IIC HAL 错误码。
+ */
+static uint32_t HwAccess_Em7028_GetLastI2cError(void)
+{
+    return BSP_IIC_GetLastHalError();
 }
 
 /**
@@ -628,6 +659,7 @@ obj_HwAccess HwAccess = {
     },
     .power = {
         .open = BSP_Power_Open,
+        .close = BSP_Power_Close,
         .is_charging = BSP_Power_IsCharging,
         .update_battery_cache = HwAccess_Power_UpdateBatteryCache,
         .get_battery_voltage_mv = HwAccess_Power_GetBatteryVoltageMv,
@@ -657,6 +689,8 @@ obj_HwAccess HwAccess = {
         .send_dma = BSP_BlueTooth_SendDma,
         .is_tx_busy = BSP_BlueTooth_IsTxBusy,
         .take_tx_done = BSP_BlueTooth_TakeTxDone,
+        .register_tx_complete_hook = BSP_BlueTooth_RegisterTxCompleteHook,
+        .register_error_hook = BSP_BlueTooth_RegisterErrorHook,
         .receive = BSP_BlueTooth_Receive,
     },
     .aht21 = {
@@ -691,10 +725,13 @@ obj_HwAccess HwAccess = {
         .probe = BSP_EM7028_Probe,
         .start = HwAccess_Em7028_Start,
         .stop = HwAccess_Em7028_Stop,
+        .read_raw = HwAccess_Em7028_ReadRaw,
         .update_cache = HwAccess_Em7028_UpdateCache,
         .get_probe_status = HwAccess_Em7028_GetProbeStatus,
         .read_reg = HwAccess_Em7028_ReadReg,
         .get_pid = HwAccess_Em7028_GetPid,
+        .get_last_i2c_status = HwAccess_Em7028_GetLastI2cStatus,
+        .get_last_i2c_error = HwAccess_Em7028_GetLastI2cError,
         .get_raw = HwAccess_Em7028_GetRaw,
         .get_bpm = HwAccess_Em7028_GetBpm,
         .is_valid = HwAccess_Em7028_IsValid,

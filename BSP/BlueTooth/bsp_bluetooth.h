@@ -7,6 +7,9 @@
 extern "C" {
 #endif
 
+typedef struct __UART_HandleTypeDef UART_HandleTypeDef;
+typedef void (*BSP_BlueTooth_IsrHook_t)(void * context);
+
 /**
  * @brief 初始化蓝牙模块 GPIO 和 USART1。
  *
@@ -97,6 +100,10 @@ void BSP_BlueTooth_UART_IRQHandler(void);
  * @return 0 表示接收成功，负数表示参数错误或 HAL 接收失败。
  */
 int BSP_BlueTooth_Receive(uint8_t * data, uint16_t len, uint32_t timeout_ms);
+
+UART_HandleTypeDef * BSP_BlueTooth_GetUartHandle(void);
+void BSP_BlueTooth_RegisterTxCompleteHook(BSP_BlueTooth_IsrHook_t hook, void * context);
+void BSP_BlueTooth_RegisterErrorHook(BSP_BlueTooth_IsrHook_t hook, void * context);
 
 #ifdef __cplusplus
 }

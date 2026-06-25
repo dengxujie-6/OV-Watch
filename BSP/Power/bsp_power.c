@@ -45,6 +45,12 @@ void BSP_Power_Open(void)
     HAL_GPIO_WritePin(BSP_POWER_EN_GPIO_PORT, BSP_POWER_EN_GPIO_PIN, GPIO_PIN_SET);
 }
 
+void BSP_Power_Close(void)
+{
+    BSP_Power_GPIO_Init();
+    HAL_GPIO_WritePin(BSP_POWER_EN_GPIO_PORT, BSP_POWER_EN_GPIO_PIN, GPIO_PIN_RESET);
+}
+
 /**
  * @brief 读取 PA2 CHARG 充电检测状态。
  *

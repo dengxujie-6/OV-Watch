@@ -14,8 +14,11 @@
 #define BSP_IIC_SCL_PORT      GPIOB
 #define BSP_IIC_SCL_PIN       GPIO_PIN_14
 #define BSP_IIC_ACK_TIMEOUT   1000U
+#define BSP_IIC_ERROR_ACK_TIMEOUT  0x00000001UL
 
 static uint8_t iic_initialized;
+static HAL_StatusTypeDef bsp_iic_last_hal_status = HAL_OK;
+static uint32_t bsp_iic_last_hal_error = 0U;
 
 static void BSP_IIC_DelayInit(void);
 static void BSP_IIC_DelayUs(uint32_t us);
@@ -34,6 +37,7 @@ static uint8_t BSP_IIC_WaitAck(uint16_t timeout_limit);
 static uint8_t BSP_IIC_IsAddressValid(uint8_t dev_addr_7bit);
 static uint8_t BSP_IIC_WriteAddress(uint8_t dev_addr_7bit);
 static uint8_t BSP_IIC_ReadAddress(uint8_t dev_addr_7bit);
+static void BSP_IIC_RecordStatus(HAL_StatusTypeDef hal_status, uint32_t hal_error);
 
 /**
  * @brief 初始化 PB13/PB14 软件 IIC 总线。
@@ -75,6 +79,7 @@ int BSP_IIC_Probe(uint8_t dev_addr_7bit)
     int ret = 0;
 
     if(BSP_IIC_IsAddressValid(dev_addr_7bit) == 0U) {
+        BSP_IIC_RecordStatus(HAL_ERROR, 0U);
         return -1;
     }
 
@@ -87,6 +92,8 @@ int BSP_IIC_Probe(uint8_t dev_addr_7bit)
         ret = -2;
     }
     BSP_IIC_Stop();
+    BSP_IIC_RecordStatus((ret == 0) ? HAL_OK : HAL_TIMEOUT,
+                         (ret == 0) ? 0U : BSP_IIC_ERROR_ACK_TIMEOUT);
 
     return ret;
 }
@@ -99,6 +106,7 @@ int BSP_IIC_Write(uint8_t dev_addr_7bit, const uint8_t * data, uint16_t len)
     uint16_t i;
 
     if((BSP_IIC_IsAddressValid(dev_addr_7bit) == 0U) || (data == NULL) || (len == 0U)) {
+        BSP_IIC_RecordStatus(HAL_ERROR, 0U);
         return -1;
     }
 
@@ -109,17 +117,20 @@ int BSP_IIC_Write(uint8_t dev_addr_7bit, const uint8_t * data, uint16_t len)
     BSP_IIC_Start();
     if(BSP_IIC_WriteAddress(dev_addr_7bit) == 0U) {
         BSP_IIC_Stop();
+        BSP_IIC_RecordStatus(HAL_TIMEOUT, BSP_IIC_ERROR_ACK_TIMEOUT);
         return -2;
     }
 
     for(i = 0U; i < len; i++) {
         if(BSP_IIC_SendByte(data[i]) == 0U) {
             BSP_IIC_Stop();
+            BSP_IIC_RecordStatus(HAL_TIMEOUT, BSP_IIC_ERROR_ACK_TIMEOUT);
             return -3;
         }
     }
 
     BSP_IIC_Stop();
+    BSP_IIC_RecordStatus(HAL_OK, 0U);
     return 0;
 }
 
@@ -131,6 +142,7 @@ int BSP_IIC_Read(uint8_t dev_addr_7bit, uint8_t * data, uint16_t len)
     uint16_t i;
 
     if((BSP_IIC_IsAddressValid(dev_addr_7bit) == 0U) || (data == NULL) || (len == 0U)) {
+        BSP_IIC_RecordStatus(HAL_ERROR, 0U);
         return -1;
     }
 
@@ -141,6 +153,7 @@ int BSP_IIC_Read(uint8_t dev_addr_7bit, uint8_t * data, uint16_t len)
     BSP_IIC_Start();
     if(BSP_IIC_ReadAddress(dev_addr_7bit) == 0U) {
         BSP_IIC_Stop();
+        BSP_IIC_RecordStatus(HAL_TIMEOUT, BSP_IIC_ERROR_ACK_TIMEOUT);
         return -2;
     }
 
@@ -155,6 +168,7 @@ int BSP_IIC_Read(uint8_t dev_addr_7bit, uint8_t * data, uint16_t len)
     }
 
     BSP_IIC_Stop();
+    BSP_IIC_RecordStatus(HAL_OK, 0U);
     return 0;
 }
 
@@ -174,6 +188,7 @@ int BSP_IIC_WriteRead(uint8_t dev_addr_7bit,
        (tx_len == 0U) ||
        (rx_data == NULL) ||
        (rx_len == 0U)) {
+        BSP_IIC_RecordStatus(HAL_ERROR, 0U);
         return -1;
     }
 
@@ -184,12 +199,14 @@ int BSP_IIC_WriteRead(uint8_t dev_addr_7bit,
     BSP_IIC_Start();
     if(BSP_IIC_WriteAddress(dev_addr_7bit) == 0U) {
         BSP_IIC_Stop();
+        BSP_IIC_RecordStatus(HAL_TIMEOUT, BSP_IIC_ERROR_ACK_TIMEOUT);
         return -2;
     }
 
     for(i = 0U; i < tx_len; i++) {
         if(BSP_IIC_SendByte(tx_data[i]) == 0U) {
             BSP_IIC_Stop();
+            BSP_IIC_RecordStatus(HAL_TIMEOUT, BSP_IIC_ERROR_ACK_TIMEOUT);
             return -3;
         }
     }
@@ -198,6 +215,7 @@ int BSP_IIC_WriteRead(uint8_t dev_addr_7bit,
     BSP_IIC_Start();
     if(BSP_IIC_ReadAddress(dev_addr_7bit) == 0U) {
         BSP_IIC_Stop();
+        BSP_IIC_RecordStatus(HAL_TIMEOUT, BSP_IIC_ERROR_ACK_TIMEOUT);
         return -4;
     }
 
@@ -212,6 +230,7 @@ int BSP_IIC_WriteRead(uint8_t dev_addr_7bit,
     }
 
     BSP_IIC_Stop();
+    BSP_IIC_RecordStatus(HAL_OK, 0U);
     return 0;
 }
 
@@ -234,6 +253,16 @@ int BSP_IIC_WriteReg(uint8_t dev_addr_7bit, uint8_t reg, uint8_t value)
 int BSP_IIC_ReadRegs(uint8_t dev_addr_7bit, uint8_t reg, uint8_t * data, uint16_t len)
 {
     return BSP_IIC_WriteRead(dev_addr_7bit, &reg, 1U, data, len);
+}
+
+HAL_StatusTypeDef BSP_IIC_GetLastHalStatus(void)
+{
+    return bsp_iic_last_hal_status;
+}
+
+uint32_t BSP_IIC_GetLastHalError(void)
+{
+    return bsp_iic_last_hal_error;
 }
 
 /**
@@ -472,4 +501,10 @@ static uint8_t BSP_IIC_WriteAddress(uint8_t dev_addr_7bit)
 static uint8_t BSP_IIC_ReadAddress(uint8_t dev_addr_7bit)
 {
     return BSP_IIC_SendByte((uint8_t)((dev_addr_7bit << 1) | 1U));
+}
+
+static void BSP_IIC_RecordStatus(HAL_StatusTypeDef hal_status, uint32_t hal_error)
+{
+    bsp_iic_last_hal_status = hal_status;
+    bsp_iic_last_hal_error = hal_error;
 }

@@ -29,6 +29,7 @@
 #include "HeartRate_Task.h"
 #include "LVGL_Task.h"
 #include "Power_Task.h"
+#include "Print_Task.h"
 #include "Sensor_Task.h"
 #include "Watchdog_Task.h"
 #include "freertos_debug.h"
@@ -42,7 +43,8 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define WATCHDOG_TASK_ENABLE 1U
+#define WATCHDOG_TASK_ENABLE 0U
+#define HEART_RATE_UART_TX_TASK_ENABLE 0U
 
 /* USER CODE END PD */
 
@@ -83,6 +85,22 @@ const osThreadAttr_t heartRateTask_attributes = {
   .name = "heartRateTask",
   .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityLow1,
+};
+
+/* Definitions for heartRateTxTask */
+osThreadId_t heartRateTxTaskHandle;
+const osThreadAttr_t heartRateTxTask_attributes = {
+  .name = "heartRateTxTask",
+  .stack_size = 256 * 4,
+  .priority = (osPriority_t) osPriorityLow,
+};
+
+/* Definitions for printTask */
+osThreadId_t printTaskHandle;
+const osThreadAttr_t printTask_attributes = {
+  .name = "printTask",
+  .stack_size = (256 * 4) + 128,
+  .priority = (osPriority_t) osPriorityLow,
 };
 
 /* USER CODE END Variables */
@@ -175,8 +193,18 @@ void MX_FREERTOS_Init(void) {
   /* creation of powerTask */
   powerTaskHandle = osThreadNew(Power_Task, NULL, &powerTask_attributes);
 
+  /* creation of printTask */
+  printTaskHandle = osThreadNew(Print_Task, NULL, &printTask_attributes);
+
   /* creation of heartRateTask */
   heartRateTaskHandle = osThreadNew(HeartRate_Task, NULL, &heartRateTask_attributes);
+
+  /* creation of heartRateTxTask */
+#if (HEART_RATE_UART_TX_TASK_ENABLE != 0U)
+  heartRateTxTaskHandle = osThreadNew(HeartRate_UartTx_Task, NULL, &heartRateTxTask_attributes);
+#else
+  heartRateTxTaskHandle = NULL;
+#endif
 
   /* creation of watchdogTask */
 #if (WATCHDOG_TASK_ENABLE != 0U)
@@ -192,11 +220,14 @@ void MX_FREERTOS_Init(void) {
   (void)FreeRTOS_Debug_RegisterTask((TaskHandle_t)keyTaskHandle, keyTask_attributes.name);
   (void)FreeRTOS_Debug_RegisterTask((TaskHandle_t)sensorTaskHandle, sensorTask_attributes.name);
   (void)FreeRTOS_Debug_RegisterTask((TaskHandle_t)powerTaskHandle, powerTask_attributes.name);
+  (void)FreeRTOS_Debug_RegisterTask((TaskHandle_t)printTaskHandle, printTask_attributes.name);
   (void)FreeRTOS_Debug_RegisterTask((TaskHandle_t)heartRateTaskHandle, heartRateTask_attributes.name);
+#if (HEART_RATE_UART_TX_TASK_ENABLE != 0U)
+  (void)FreeRTOS_Debug_RegisterTask((TaskHandle_t)heartRateTxTaskHandle, heartRateTxTask_attributes.name);
+#endif
 #if (WATCHDOG_TASK_ENABLE != 0U)
   (void)FreeRTOS_Debug_RegisterTask((TaskHandle_t)watchdogTaskHandle, watchdogTask_attributes.name);
 #endif
-  (void)FreeRTOS_Debug_CreateMonitorTask();
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */

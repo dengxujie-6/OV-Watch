@@ -339,7 +339,7 @@
               <MiscControls></MiscControls>
               <Define>USE_HAL_DRIVER,STM32F411xE</Define>
               <Undefine></Undefine>
-              <IncludePath>../Core/Inc;../USER/HwAccess;../USER/Task/GUI_Task;../USER/Task/HeartRate_Task;../USER/Task/HardWare_init_task;../USER/Task/Key_Task;../USER/Task/PROM_Test;../USER/Task/Power_Task;../USER/Task/Sensor_Task;../USER/Task/Watchdog_Task;../USER/PageManagement;../USER/GUI_page;../USER/GUI_page/Home;../USER/GUI_page/Menu;../USER/GUI_page/Common;../USER/GUI_page/Tools;../USER/GUI_page/Status;../USER/GUI_page/Diagnostics;../USER/FONTS;../USER/FreeRTOS_Debug;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../BSP/LCD;../Middlewares/Third_Party/FreeRTOS/Source/include;../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2;../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F;../Middlewares/Third_Party/lvgl_minimal_runtime;../Middlewares/Third_Party/lvgl_minimal_runtime/lvgl;../Middlewares/Third_Party/lvgl_minimal_runtime/lvgl/include;../Middlewares/Third_Party/lvgl_minimal_runtime/port;..\Middlewares\Third_Party\lvgl_minimal_runtime\lvgl\include\lvgl\draw;..\BSP\Key;..\BSP\Power;..\BSP\IIC;..\BSP\EM7028;..\BSP\Watchdog;..\BSP\PROM;..\BSP\BlueTooth;..\BSP\AHT21;..\BSP\LSM303DLHC;..\BSP\MPU6050</IncludePath>
+              <IncludePath>../Core/Inc;../USER/HwAccess;../USER/Service/HeartRate;../USER/Task/GUI_Task;../USER/Task/HeartRate_Task;../USER/Task/HardWare_init_task;../USER/Task/Key_Task;../USER/Task/PROM_Test;../USER/Task/Power_Task;../USER/Task/Print_Task;../USER/Task/Sensor_Task;../USER/Task/Watchdog_Task;../USER/PageManagement;../USER/GUI_page;../USER/GUI_page/Home;../USER/GUI_page/Menu;../USER/GUI_page/Common;../USER/GUI_page/Tools;../USER/GUI_page/Status;../USER/GUI_page/Diagnostics;../USER/FONTS;../USER/FreeRTOS_Debug;../Drivers/STM32F4xx_HAL_Driver/Inc;../Drivers/STM32F4xx_HAL_Driver/Inc/Legacy;../Drivers/CMSIS/Device/ST/STM32F4xx/Include;../Drivers/CMSIS/Include;../BSP/LCD;../Middlewares/Third_Party/FreeRTOS/Source/include;../Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS_V2;../Middlewares/Third_Party/FreeRTOS/Source/portable/RVDS/ARM_CM4F;../Middlewares/Third_Party/lvgl_minimal_runtime;../Middlewares/Third_Party/lvgl_minimal_runtime/lvgl;../Middlewares/Third_Party/lvgl_minimal_runtime/lvgl/include;../Middlewares/Third_Party/lvgl_minimal_runtime/port;..\Middlewares\Third_Party\lvgl_minimal_runtime\lvgl\include\lvgl\draw;..\BSP\Key;..\BSP\Power;..\BSP\IIC;..\BSP\EM7028;..\BSP\Watchdog;..\BSP\PROM;..\BSP\BlueTooth;..\BSP\AHT21;..\BSP\LSM303DLHC;..\BSP\MPU6050</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -1517,9 +1517,24 @@
               <FilePath>../USER/Task/Power_Task/Power_Task.c</FilePath>
             </File>
             <File>
+              <FileName>Print_Task.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../USER/Task/Print_Task/Print_Task.c</FilePath>
+            </File>
+            <File>
               <FileName>HeartRate_Task.c</FileName>
               <FileType>1</FileType>
               <FilePath>../USER/Task/HeartRate_Task/HeartRate_Task.c</FilePath>
+            </File>
+            <File>
+              <FileName>ppg_signal_processor.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../USER/Service/HeartRate/ppg_signal_processor.c</FilePath>
+            </File>
+            <File>
+              <FileName>ppg_uart_stream.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../USER/Task/HeartRate_Task/ppg_uart_stream.c</FilePath>
             </File>
             <File>
               <FileName>Watchdog_Task.c</FileName>
@@ -1617,6 +1632,11 @@
               <FilePath>../USER/GUI_page/Tools/compass_page.c</FilePath>
             </File>
             <File>
+              <FileName>heart_rate_page.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../USER/GUI_page/Tools/heart_rate_page.c</FilePath>
+            </File>
+            <File>
               <FileName>test_page.c</FileName>
               <FileType>1</FileType>
               <FilePath>../USER/GUI_page/Tools/test_page.c</FilePath>
@@ -1625,6 +1645,11 @@
               <FileName>charging_page.c</FileName>
               <FileType>1</FileType>
               <FilePath>../USER/GUI_page/Status/charging_page.c</FilePath>
+            </File>
+            <File>
+              <FileName>dropdown_menu_page.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../USER/GUI_page/Status/dropdown_menu_page.c</FilePath>
             </File>
             <File>
               <FileName>debug_overlay.c</FileName>

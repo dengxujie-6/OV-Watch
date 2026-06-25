@@ -1,5 +1,7 @@
 #include "bsp_bluetooth.h"
 
+#include "FreeRTOS.h"
+#include "semphr.h"
 #include "main.h"
 
 #define BSP_BLUETOOTH_EN_GPIO_PORT       GPIOA
@@ -17,12 +19,20 @@
 #define BSP_BLUETOOTH_TX_DMA_STREAM      DMA2_Stream7
 #define BSP_BLUETOOTH_TX_DMA_CHANNEL     DMA_CHANNEL_4
 #define BSP_BLUETOOTH_TX_DMA_IRQn        DMA2_Stream7_IRQn
+#define BSP_BLUETOOTH_LOCK_TIMEOUT_MS    200U
 
 static UART_HandleTypeDef bluetooth_uart_handle;
 static DMA_HandleTypeDef bluetooth_uart_tx_dma_handle;
+static StaticSemaphore_t bluetooth_uart_lock_storage;
+static SemaphoreHandle_t bluetooth_uart_lock;
+static BSP_BlueTooth_IsrHook_t bluetooth_tx_complete_hook;
+static void * bluetooth_tx_complete_hook_context;
+static BSP_BlueTooth_IsrHook_t bluetooth_error_hook;
+static void * bluetooth_error_hook_context;
 static uint8_t bluetooth_gpio_initialized;
 static uint8_t bluetooth_uart_initialized;
 static uint8_t bluetooth_dma_initialized;
+static uint8_t bluetooth_uart_lock_initialized;
 static volatile uint8_t bluetooth_tx_busy;
 static volatile uint8_t bluetooth_tx_done;
 static volatile uint8_t bluetooth_tx_error;
@@ -30,6 +40,10 @@ static volatile uint8_t bluetooth_tx_error;
 static void BSP_BlueTooth_GPIO_Init(void);
 static int BSP_BlueTooth_UART_Init(void);
 static int BSP_BlueTooth_DMA_Init(void);
+static void BSP_BlueTooth_LockInit(void);
+static int BSP_BlueTooth_Lock(uint32_t timeout_ms);
+static void BSP_BlueTooth_Unlock(void);
+static void BSP_BlueTooth_UnlockFromISR(BaseType_t * higher_priority_task_woken);
 
 /**
  * @brief 初始化蓝牙模块 GPIO 和 USART1。
@@ -37,6 +51,7 @@ static int BSP_BlueTooth_DMA_Init(void);
 void BSP_BlueTooth_Init(void)
 {
     BSP_BlueTooth_GPIO_Init();
+    BSP_BlueTooth_LockInit();
     (void)BSP_BlueTooth_UART_Init();
 
     // 蓝牙 EN 为高电平有效，初始化完成后默认打开模块，便于后续串口通信。
@@ -72,6 +87,7 @@ void BSP_BlueTooth_DeInit(void)
     bluetooth_tx_busy = 0U;
     bluetooth_tx_done = 0U;
     bluetooth_tx_error = 0U;
+    BSP_BlueTooth_Unlock();
 }
 
 /**
@@ -111,6 +127,9 @@ uint8_t BSP_BlueTooth_IsEnabled(void)
 
 /**
  * @brief 通过 USART1 阻塞发送数据到蓝牙模块。
+ *
+ * 这里使用同一把串口资源锁保护阻塞发送、DMA 发送和阻塞接收，避免多个任务同时操作
+ * 同一个 HAL UART 状态机，导致发送被打断或返回忙错误。
  */
 int BSP_BlueTooth_Send(const uint8_t * data, uint16_t len, uint32_t timeout_ms)
 {
@@ -126,16 +145,31 @@ int BSP_BlueTooth_Send(const uint8_t * data, uint16_t len, uint32_t timeout_ms)
         return 0;
     }
 
-    // HAL_UART_Transmit 在任务上下文中阻塞等待发送完成，不在 ISR 中调用。
-    if(HAL_UART_Transmit(&bluetooth_uart_handle, (uint8_t *)data, len, timeout_ms) != HAL_OK) {
+    if(BSP_BlueTooth_Lock(timeout_ms) != 0) {
         return -3;
     }
 
+    bluetooth_tx_busy = 1U;
+    bluetooth_tx_done = 0U;
+    bluetooth_tx_error = 0U;
+
+    if(HAL_UART_Transmit(&bluetooth_uart_handle, (uint8_t *)data, len, timeout_ms) != HAL_OK) {
+        bluetooth_tx_busy = 0U;
+        bluetooth_tx_error = 1U;
+        BSP_BlueTooth_Unlock();
+        return -3;
+    }
+
+    bluetooth_tx_busy = 0U;
+    BSP_BlueTooth_Unlock();
     return 0;
 }
 
 /**
  * @brief 通过 USART1 TX DMA 非阻塞发送数据到蓝牙模块。
+ *
+ * DMA 启动前先拿串口资源锁；锁会一直持有到 DMA 完成中断或错误中断里释放。
+ * 这样即使别的任务随后调用阻塞发送，也只能等这次 DMA 真正完成后再继续。
  */
 int BSP_BlueTooth_SendDma(const uint8_t * data, uint16_t len)
 {
@@ -151,7 +185,7 @@ int BSP_BlueTooth_SendDma(const uint8_t * data, uint16_t len)
         return 0;
     }
 
-    if(bluetooth_tx_busy != 0U) {
+    if(BSP_BlueTooth_Lock(BSP_BLUETOOTH_LOCK_TIMEOUT_MS) != 0) {
         return -3;
     }
 
@@ -163,6 +197,7 @@ int BSP_BlueTooth_SendDma(const uint8_t * data, uint16_t len)
     if(HAL_UART_Transmit_DMA(&bluetooth_uart_handle, (uint8_t *)data, len) != HAL_OK) {
         bluetooth_tx_busy = 0U;
         bluetooth_tx_error = 1U;
+        BSP_BlueTooth_Unlock();
         return -4;
     }
 
@@ -170,7 +205,7 @@ int BSP_BlueTooth_SendDma(const uint8_t * data, uint16_t len)
 }
 
 /**
- * @brief 查询 USART1 TX DMA 是否仍在发送。
+ * @brief 查询 USART1 TX 是否仍在发送。
  */
 uint8_t BSP_BlueTooth_IsTxBusy(void)
 {
@@ -204,6 +239,24 @@ void BSP_BlueTooth_UART_IRQHandler(void)
     HAL_UART_IRQHandler(&bluetooth_uart_handle);
 }
 
+UART_HandleTypeDef * BSP_BlueTooth_GetUartHandle(void)
+{
+    (void)BSP_BlueTooth_UART_Init();
+    return &bluetooth_uart_handle;
+}
+
+void BSP_BlueTooth_RegisterTxCompleteHook(BSP_BlueTooth_IsrHook_t hook, void * context)
+{
+    bluetooth_tx_complete_hook = hook;
+    bluetooth_tx_complete_hook_context = context;
+}
+
+void BSP_BlueTooth_RegisterErrorHook(BSP_BlueTooth_IsrHook_t hook, void * context)
+{
+    bluetooth_error_hook = hook;
+    bluetooth_error_hook_context = context;
+}
+
 /**
  * @brief 通过 USART1 阻塞接收蓝牙模块数据。
  */
@@ -221,11 +274,16 @@ int BSP_BlueTooth_Receive(uint8_t * data, uint16_t len, uint32_t timeout_ms)
         return 0;
     }
 
-    // 这里保持最小阻塞式接口；后续如需异步接收，再在任务层增加队列或通知。
-    if(HAL_UART_Receive(&bluetooth_uart_handle, data, len, timeout_ms) != HAL_OK) {
+    if(BSP_BlueTooth_Lock(timeout_ms) != 0) {
         return -3;
     }
 
+    if(HAL_UART_Receive(&bluetooth_uart_handle, data, len, timeout_ms) != HAL_OK) {
+        BSP_BlueTooth_Unlock();
+        return -3;
+    }
+
+    BSP_BlueTooth_Unlock();
     return 0;
 }
 
@@ -264,11 +322,6 @@ static void BSP_BlueTooth_GPIO_Init(void)
 
 /**
  * @brief 初始化 USART1_TX 对应的 DMA2 Stream7 Channel4。
- *
- * STM32F411 上 USART1_TX 使用 DMA2 的通道 4，这里由蓝牙 BSP 持有 DMA 句柄，
- * Core 中断入口只负责调用 BSP_BlueTooth_DMA_IRQHandler() 完成中断分发。
- *
- * @return 0 表示成功，负数表示 HAL DMA 初始化失败。
  */
 static int BSP_BlueTooth_DMA_Init(void)
 {
@@ -303,9 +356,7 @@ static int BSP_BlueTooth_DMA_Init(void)
 }
 
 /**
- * @brief 初始化 USART1 为 115200-8-N-1 阻塞收发模式。
- *
- * @return 0 表示初始化成功，负数表示 HAL UART 初始化失败。
+ * @brief 初始化 USART1 为 115200-8-N-1 收发模式。
  */
 static int BSP_BlueTooth_UART_Init(void)
 {
@@ -314,6 +365,7 @@ static int BSP_BlueTooth_UART_Init(void)
     }
 
     BSP_BlueTooth_GPIO_Init();
+    BSP_BlueTooth_LockInit();
     __HAL_RCC_USART1_CLK_ENABLE();
 
     bluetooth_uart_handle.Instance = BSP_BLUETOOTH_UART;
@@ -342,23 +394,97 @@ static int BSP_BlueTooth_UART_Init(void)
 }
 
 /**
- * @brief HAL UART 发送完成回调，在 DMA 传输完成中断链路中被调用。
+ * @brief 初始化蓝牙串口资源锁。
  */
-void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
+static void BSP_BlueTooth_LockInit(void)
 {
-    if(huart == &bluetooth_uart_handle) {
-        bluetooth_tx_busy = 0U;
-        bluetooth_tx_done = 1U;
+    if(bluetooth_uart_lock_initialized != 0U) {
+        return;
+    }
+
+    bluetooth_uart_lock = xSemaphoreCreateBinaryStatic(&bluetooth_uart_lock_storage);
+    if(bluetooth_uart_lock != NULL) {
+        (void)xSemaphoreGive(bluetooth_uart_lock);
+        bluetooth_uart_lock_initialized = 1U;
     }
 }
 
 /**
- * @brief HAL UART 错误回调，释放 DMA 发送忙状态，避免任务永久等待。
+ * @brief 获取蓝牙串口资源锁。
+ */
+static int BSP_BlueTooth_Lock(uint32_t timeout_ms)
+{
+    TickType_t timeout_ticks;
+
+    BSP_BlueTooth_LockInit();
+    if(bluetooth_uart_lock == NULL) {
+        return -1;
+    }
+
+    if(timeout_ms == HAL_MAX_DELAY) {
+        timeout_ticks = portMAX_DELAY;
+    } else {
+        timeout_ticks = pdMS_TO_TICKS(timeout_ms);
+        if((timeout_ms > 0U) && (timeout_ticks == 0U)) {
+            timeout_ticks = 1U;
+        }
+    }
+
+    return (xSemaphoreTake(bluetooth_uart_lock, timeout_ticks) == pdTRUE) ? 0 : -1;
+}
+
+/**
+ * @brief 在任务上下文里释放蓝牙串口资源锁。
+ */
+static void BSP_BlueTooth_Unlock(void)
+{
+    if(bluetooth_uart_lock != NULL) {
+        (void)xSemaphoreGive(bluetooth_uart_lock);
+    }
+}
+
+/**
+ * @brief 在中断上下文里释放蓝牙串口资源锁。
+ */
+static void BSP_BlueTooth_UnlockFromISR(BaseType_t * higher_priority_task_woken)
+{
+    if(bluetooth_uart_lock != NULL) {
+        (void)xSemaphoreGiveFromISR(bluetooth_uart_lock, higher_priority_task_woken);
+    }
+}
+
+/**
+ * @brief HAL UART 发送完成回调。
+ */
+void HAL_UART_TxCpltCallback(UART_HandleTypeDef *huart)
+{
+    if(huart == &bluetooth_uart_handle) {
+        BaseType_t higher_priority_task_woken = pdFALSE;
+
+        bluetooth_tx_busy = 0U;
+        bluetooth_tx_done = 1U;
+        BSP_BlueTooth_UnlockFromISR(&higher_priority_task_woken);
+        if(bluetooth_tx_complete_hook != NULL) {
+            bluetooth_tx_complete_hook(bluetooth_tx_complete_hook_context);
+        }
+        portYIELD_FROM_ISR(higher_priority_task_woken);
+    }
+}
+
+/**
+ * @brief HAL UART 错误回调。
  */
 void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 {
     if(huart == &bluetooth_uart_handle) {
+        BaseType_t higher_priority_task_woken = pdFALSE;
+
         bluetooth_tx_busy = 0U;
         bluetooth_tx_error = 1U;
+        BSP_BlueTooth_UnlockFromISR(&higher_priority_task_woken);
+        if(bluetooth_error_hook != NULL) {
+            bluetooth_error_hook(bluetooth_error_hook_context);
+        }
+        portYIELD_FROM_ISR(higher_priority_task_woken);
     }
 }

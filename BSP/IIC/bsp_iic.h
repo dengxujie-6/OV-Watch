@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#include "stm32f4xx_hal.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -90,6 +92,24 @@ int BSP_IIC_WriteReg(uint8_t dev_addr_7bit, uint8_t reg, uint8_t value);
  * @return 0 表示成功，负数表示参数非法或总线 NACK。
  */
 int BSP_IIC_ReadRegs(uint8_t dev_addr_7bit, uint8_t reg, uint8_t * data, uint16_t len);
+
+/**
+ * @brief 获取最近一次软件 IIC 事务对应的 HAL 状态码。
+ *
+ * 该接口用于上层诊断统计，不改变现有返回值约定。
+ *
+ * @return 最近一次事务映射得到的 HAL_StatusTypeDef。
+ */
+HAL_StatusTypeDef BSP_IIC_GetLastHalStatus(void);
+
+/**
+ * @brief 获取最近一次软件 IIC 事务对应的 HAL 错误码。
+ *
+ * 当前软件 IIC 不使用 HAL I2C 外设，该值主要用于区分是否发生 ACK 超时。
+ *
+ * @return 最近一次事务的错误码，成功时返回 0。
+ */
+uint32_t BSP_IIC_GetLastHalError(void);
 
 #ifdef __cplusplus
 }

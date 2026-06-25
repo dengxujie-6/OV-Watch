@@ -75,6 +75,7 @@ file(GLOB_RECURSE USER_SOURCES CONFIGURE_DEPENDS
     USER/HwAccess/*.c
     USER/PageManagement/page_manager.c
     USER/Pictures/*.c
+    USER/Service/*.c
     USER/Task/*.c
 )
 
@@ -127,12 +128,14 @@ target_compile_definitions(${TARGET_NAME} PRIVATE
 target_include_directories(${TARGET_NAME} PRIVATE
     Core/Inc
     USER/HwAccess
+    USER/Service/HeartRate
     USER/Task/GUI_Task
     USER/Task/HeartRate_Task
     USER/Task/HardWare_init_task
     USER/Task/Key_Task
     USER/Task/PROM_Test
     USER/Task/Power_Task
+    USER/Task/Print_Task
     USER/Task/Sensor_Task
     USER/Task/Watchdog_Task
     USER/PageManagement

@@ -76,7 +76,6 @@ void Sensor_Task(void *argument)
 
             if((osKernelGetTickCount() - sensor_task_last_motion_ms) >= SENSOR_TASK_STATIC_TO_SLEEP_MS) {
                 Sensor_Task_SwitchToLowRateMode();
-                LowPower_RequestSleep();
             }
         } else {
             Sensor_Task_RefreshEnvironment();
@@ -85,8 +84,6 @@ void Sensor_Task(void *argument)
             if(Sensor_Task_IsMotionDetected() != 0U) {
                 sensor_task_last_motion_ms = osKernelGetTickCount();
                 Sensor_Task_SwitchToDataReadyMode();
-            } else if((osKernelGetTickCount() - sensor_task_last_motion_ms) >= SENSOR_TASK_STATIC_TO_SLEEP_MS) {
-                LowPower_RequestSleep();
             }
 
             osDelay(SENSOR_TASK_LOW_RATE_PERIOD_MS);
