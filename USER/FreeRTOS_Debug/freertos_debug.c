@@ -17,7 +17,6 @@ volatile char *FreeRTOS_DebugStackOverflowTaskName;
 volatile FreeRTOS_DebugTaskInfo_t g_freertos_debug_tasks[FREERTOS_DEBUG_MAX_TASKS];
 volatile uint32_t g_freertos_debug_task_count;
 
-static void FreeRTOS_Debug_UpdateStackMonitor(void);
 static void FreeRTOS_Debug_ReportTaskList(void);
 
 /**
@@ -31,7 +30,7 @@ static void FreeRTOS_Debug_ReportTaskList(void);
  */
 void FreeRTOS_Debug_Poll(void)
 {
-    FreeRTOS_Debug_UpdateStackMonitor();
+    FreeRTOS_Debug_UpdateStackMonitorSnapshot();
     FreeRTOS_Debug_ReportTaskList();
 }
 
@@ -76,7 +75,7 @@ uint8_t FreeRTOS_Debug_RegisterTask(TaskHandle_t task_handle, const char *task_n
  * `StackType_t`。这里同步换算成字节，便于在调试器中直接观察。
  * 本函数只允许在普通任务上下文调用，不能在 ISR 中调用。
  */
-static void FreeRTOS_Debug_UpdateStackMonitor(void)
+void FreeRTOS_Debug_UpdateStackMonitorSnapshot(void)
 {
     uint32_t index;
 

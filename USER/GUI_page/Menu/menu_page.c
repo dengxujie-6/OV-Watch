@@ -48,8 +48,6 @@ typedef struct {
     lv_obj_t * icon_bg;            /**< 图标背景对象，随按钮删除。 */
     lv_obj_t * title_label;        /**< 标题 label，随按钮删除。 */
     lv_indev_t * pressed_indev;    /**< 当前按下的输入设备，不负责释放。 */
-    lv_timer_t * press_timer;      /**< 延迟高亮定时器，由事件回调删除。 */
-    bool effect_on;                /**< 标记当前高亮效果是否已开启。 */
 } menu_item_ctx_t;
 
 static menu_item_ctx_t s_menu_item_ctx[MENU_ITEM_COUNT];
@@ -98,33 +96,6 @@ static void menu_page_request_push(const GUI_Page_t * page, const char * title)
     }
 }
 
-static void menu_item_effect_set(menu_item_ctx_t * ctx, bool on)
-{
-    if(!ctx) return;
-    if(ctx->effect_on == on) return;
-    ctx->effect_on = on;
-
-    if(ctx->icon_bg) {
-        if(on) lv_obj_add_state(ctx->icon_bg, LV_STATE_USER_1);
-        else lv_obj_clear_state(ctx->icon_bg, LV_STATE_USER_1);
-    }
-    if(ctx->title_label) {
-        if(on) lv_obj_add_state(ctx->title_label, LV_STATE_USER_1);
-        else lv_obj_clear_state(ctx->title_label, LV_STATE_USER_1);
-    }
-}
-
-static void menu_item_press_timer_cb(lv_timer_t * t)
-{
-    menu_item_ctx_t * ctx = (menu_item_ctx_t *)lv_timer_get_user_data(t);
-    if(!ctx) return;
-
-    ctx->press_timer = NULL;
-    lv_timer_del(t);
-
-    menu_item_effect_set(ctx, true);
-}
-
 static void menu_item_event_cb(lv_event_t * e)
 {
     lv_event_code_t code = lv_event_get_code(e);
@@ -133,22 +104,13 @@ static void menu_item_event_cb(lv_event_t * e)
     if(code == LV_EVENT_PRESSED) {
         if(!ctx) return;
         ctx->pressed_indev = lv_event_get_indev(e);
-
-        if(ctx->press_timer) lv_timer_del(ctx->press_timer);
-        ctx->press_timer = lv_timer_create(menu_item_press_timer_cb, 120, ctx);
-        lv_timer_set_repeat_count(ctx->press_timer, 1);
     }
     else if(code == LV_EVENT_PRESS_LOST) {
         // 滑动列表时 LVGL 会让按钮失去 press 状态，但手指还没松开，保留高亮反馈。
     }
     else if(code == LV_EVENT_RELEASED) {
-        if(ctx && ctx->press_timer) {
-            lv_timer_del(ctx->press_timer);
-            ctx->press_timer = NULL;
-        }
         if(ctx) {
             ctx->pressed_indev = NULL;
-            menu_item_effect_set(ctx, false);
         }
     }
     else if(code == LV_EVENT_CLICKED) {
@@ -190,12 +152,6 @@ static void menu_item_event_cb(lv_event_t * e)
         }
         else {
             menu_page_request_push(&TitlePage, title);
-        }
-    }
-    else if(code == LV_EVENT_DELETE) {
-        if(ctx && ctx->press_timer) {
-            lv_timer_del(ctx->press_timer);
-            ctx->press_timer = NULL;
         }
     }
 }
@@ -253,11 +209,6 @@ static lv_obj_t * menu_item_create(lv_obj_t * parent, menu_page_t * owner,
         ctx->title_label = title;
     }
 
-    lv_obj_set_style_bg_opa(icon_bg, LV_OPA_70, LV_STATE_USER_1);
-    lv_obj_set_style_transform_zoom(icon_bg, 230, LV_STATE_USER_1);
-
-    lv_obj_set_style_text_color(title, lv_color_hex(0xe9ecef), LV_STATE_USER_1);
-
     return btn;
 }
 
@@ -293,6 +244,10 @@ static void list_scroll_event_cb(lv_event_t * e)
 
     lv_event_code_t code = lv_event_get_code(e);
     if(code != LV_EVENT_SCROLL && code != LV_EVENT_SCROLL_BEGIN && code != LV_EVENT_SCROLL_END) return;
+
+    page->last_scroll_y = lv_obj_get_scroll_y(page->list);
+    s_menu_saved_scroll_y = page->last_scroll_y;
+    s_menu_saved_scroll_valid = true;
 
     lv_obj_set_scrollbar_mode(page->list, LV_SCROLLBAR_MODE_ON);
 

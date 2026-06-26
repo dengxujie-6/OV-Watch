@@ -20,10 +20,9 @@ static void LVGL_Task_HandleWakeRefresh(void);
 static void LVGL_Task_UpdateMemMonitor(void);
 
 /**
- * @brief LVGL 堆内存监控快照，供调试器 Watch 窗口查看。
+ * @brief LVGL 内存池监控快照，供调试器与打印任务查看。
  *
- * 这些变量只在 LVGL 任务上下文更新，避免跨任务或中断直接调用 LVGL 内存 API。
- * 程序停在 LV_ASSERT_MALLOC / E7FE 时，优先看 free_biggest_size 是否过小。
+ * 这些变量只在 LVGL 任务上下文中更新，避免跨任务直接调用 LVGL 内存 API。
  */
 volatile lv_mem_monitor_t g_lvgl_mem_monitor;
 volatile uint32_t g_lvgl_mem_total_size;
@@ -33,52 +32,67 @@ volatile uint32_t g_lvgl_mem_used_pct;
 volatile uint32_t g_lvgl_mem_frag_pct;
 volatile uint32_t g_lvgl_mem_max_used;
 volatile uint32_t g_lvgl_mem_last_update_ms;
+volatile uint32_t g_lvgl_task_phase;
 
 void lv_port_disp_init(void);
 void lv_port_indev_init(void);
 
 /**
- * @brief Run LVGL initialization and timer handling loop.
+ * @brief LVGL 任务入口。
  *
- * 该任务由 freertos.c 统一创建，本文件只负责 LVGL 初始化和周期调度。
+ * 本任务负责：
+ * 1. 初始化 LVGL 核心、显示与输入移植层；
+ * 2. 加载首页；
+ * 3. 周期执行 `lv_timer_handler()` 与内存监控更新。
+ *
+ * `g_lvgl_task_phase` 用于记录当前运行阶段，方便卡死后判断停在哪一步。
  */
 void LVGL_Task(void *argument)
 {
     (void)argument;
 
-    // 初始化 LVGL 核心库，必须先于显示和输入设备初始化。
+    g_lvgl_task_phase = 1U;
     lv_init();
 
-    // 使用 HAL_GetTick 作为 LVGL 系统节拍来源。
+    g_lvgl_task_phase = 2U;
     lv_tick_set_cb(HAL_GetTick);
 
-    // 初始化显示驱动和输入设备驱动。
+    g_lvgl_task_phase = 3U;
     lv_port_disp_init();
     lv_port_indev_init();
     DebugOverlay_Init();
 
-    // 进入默认主页；该页位于 PageManager 栈底，切换到其它页面时保持常驻。
+    g_lvgl_task_phase = 4U;
     (void)PageManager_Push(&HomePage);
     LVGL_Task_UpdateMemMonitor();
 
+    g_lvgl_task_phase = 5U;
+
     for(;;) {
+        g_lvgl_task_phase = 10U;
         LVGL_Task_HandleWakeRefresh();
+
+        g_lvgl_task_phase = 11U;
         LVGL_Task_HandleKeyEvents();
-        // 周期执行 LVGL 定时器处理函数，驱动动画、输入和刷新流程。
+
+        g_lvgl_task_phase = 12U;
         (void)lv_timer_handler();
+
+        g_lvgl_task_phase = 13U;
         LVGL_Task_UpdateMemMonitor();
+
+        g_lvgl_task_phase = 14U;
         lvgl_task_heartbeat_tick = osKernelGetTickCount();
+
+        g_lvgl_task_phase = 15U;
         osDelay(LVGL_TASK_DELAY_MS);
     }
 }
 
 /**
- * @brief 读取 LVGL 任务最近一次完成主循环处理的 RTOS tick。
+ * @brief 获取 LVGL 任务最近一次完成主循环的系统 tick。
  *
- * 看门狗任务通过该心跳判断 GUI/LVGL 主循环是否仍在推进；该函数只读取
- * 32 位 volatile 值，不调用 LVGL API，可由普通任务安全调用。
- *
- * @return 最近一次心跳 tick；返回 0 表示 LVGL 任务尚未完成第一次循环。
+ * @return 最近一次心跳 tick；返回 0 表示任务尚未完成第一轮循环。
  */
 uint32_t LVGL_Task_GetHeartbeatTick(void)
 {
@@ -102,10 +116,7 @@ static void LVGL_Task_HandleKeyEvents(void)
 }
 
 /**
- * @brief 定期刷新 LVGL 堆内存监控信息。
- *
- * lv_mem_monitor() 会遍历 LVGL 内部堆块，只允许在 GUI/LVGL 任务中调用。
- * 展开的 uint32_t 变量用于在 Keil Watch 窗口里直接观察关键水位。
+ * @brief 处理低功耗唤醒后的整屏刷新请求。
  */
 static void LVGL_Task_HandleWakeRefresh(void)
 {
@@ -123,6 +134,11 @@ static void LVGL_Task_HandleWakeRefresh(void)
     lv_refr_now(NULL);
 }
 
+/**
+ * @brief 周期刷新 LVGL 内存池监控信息。
+ *
+ * 只允许在 GUI/LVGL 任务中调用 `lv_mem_monitor()`。
+ */
 static void LVGL_Task_UpdateMemMonitor(void)
 {
     const uint32_t now_ms = HAL_GetTick();

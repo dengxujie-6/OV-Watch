@@ -56,9 +56,11 @@ extern volatile FreeRTOS_DebugTaskInfo_t g_freertos_debug_tasks[FREERTOS_DEBUG_M
 extern volatile uint32_t g_freertos_debug_task_count;
 
 uint8_t FreeRTOS_Debug_RegisterTask(TaskHandle_t task_handle, const char *task_name);
+void FreeRTOS_Debug_UpdateStackMonitorSnapshot(void);
 void FreeRTOS_Debug_Poll(void);
 #else
 #define FreeRTOS_Debug_RegisterTask(task_handle, task_name) ((uint8_t)0U)
+#define FreeRTOS_Debug_UpdateStackMonitorSnapshot()         do { } while(0)
 #define FreeRTOS_Debug_Poll()                               do { } while(0)
 #endif
 

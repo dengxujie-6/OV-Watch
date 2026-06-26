@@ -17,6 +17,7 @@ extern volatile uint32_t g_lvgl_mem_used_pct;
 extern volatile uint32_t g_lvgl_mem_frag_pct;
 extern volatile uint32_t g_lvgl_mem_max_used;
 extern volatile uint32_t g_lvgl_mem_last_update_ms;
+extern volatile uint32_t g_lvgl_task_phase;
 
 #ifdef __cplusplus
 }

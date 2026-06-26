@@ -100,7 +100,7 @@ osThreadId_t printTaskHandle;
 const osThreadAttr_t printTask_attributes = {
   .name = "printTask",
   .stack_size = (256 * 4) + 128,
-  .priority = (osPriority_t) osPriorityLow,
+  .priority = (osPriority_t) osPriorityAboveNormal1,
 };
 
 /* USER CODE END Variables */
