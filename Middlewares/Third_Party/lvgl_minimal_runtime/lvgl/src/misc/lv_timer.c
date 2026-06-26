@@ -33,6 +33,19 @@ static void lv_timer_handler_resume(void);
 /**********************
  *  STATIC VARIABLES
  **********************/
+volatile uint32_t g_lvgl_timer_debug_phase;
+volatile uint32_t g_lvgl_timer_debug_change_count;
+volatile uint32_t g_lvgl_timer_debug_last_tick;
+
+/**********************
+ *   STATIC FUNCTIONS
+ **********************/
+static void lvgl_timer_debug_set_phase(uint32_t phase)
+{
+    g_lvgl_timer_debug_phase = phase;
+    g_lvgl_timer_debug_change_count++;
+    g_lvgl_timer_debug_last_tick = lv_tick_get();
+}
 
 /**********************
  *      MACROS
@@ -57,23 +70,27 @@ void lv_timer_core_init(void)
 
 LV_ATTRIBUTE_TIMER_HANDLER uint32_t lv_timer_handler(void)
 {
+    lvgl_timer_debug_set_phase(1U);
     LV_TRACE_TIMER("begin");
 
     lv_timer_state_t * state_p = &state;
     /*Avoid concurrent running of the timer handler*/
     if(state_p->already_running) {
+        lvgl_timer_debug_set_phase(2U);
         LV_TRACE_TIMER("already running, concurrent calls are not allow, returning");
         return 1;
     }
     state_p->already_running = true;
 
     if(state_p->lv_timer_run == false) {
+        lvgl_timer_debug_set_phase(3U);
         state_p->already_running = false; /*Release mutex*/
         return 1;
     }
 
     LV_PROFILER_TIMER_BEGIN;
     lv_lock();
+    lvgl_timer_debug_set_phase(4U);
 
     uint32_t handler_start = lv_tick_get();
 
@@ -90,6 +107,7 @@ LV_ATTRIBUTE_TIMER_HANDLER uint32_t lv_timer_handler(void)
     lv_timer_t * timer_active;
     lv_ll_t * timer_head = timer_ll_p;
     do {
+        lvgl_timer_debug_set_phase(5U);
         state_p->timer_deleted             = false;
         state_p->timer_created             = false;
 
@@ -100,8 +118,10 @@ LV_ATTRIBUTE_TIMER_HANDLER uint32_t lv_timer_handler(void)
             next = lv_ll_get_next(timer_head, timer_active);
 
             if(lv_timer_exec(timer_active)) {
+                lvgl_timer_debug_set_phase(6U);
                 /*If a timer was created or deleted then this or the next item might be corrupted*/
                 if(state_p->timer_created || state_p->timer_deleted) {
+                    lvgl_timer_debug_set_phase(7U);
                     LV_TRACE_TIMER("Start from the first timer again because a timer was created or deleted");
                     break;
                 }
@@ -112,6 +132,7 @@ LV_ATTRIBUTE_TIMER_HANDLER uint32_t lv_timer_handler(void)
     } while(timer_active);
 
     uint32_t time_until_next = LV_NO_TIMER_READY;
+    lvgl_timer_debug_set_phase(8U);
     next = lv_ll_get_head(timer_head);
     while(next) {
         if(!next->paused) {
@@ -134,9 +155,11 @@ LV_ATTRIBUTE_TIMER_HANDLER uint32_t lv_timer_handler(void)
 
     state_p->timer_time_until_next = time_until_next;
     state_p->already_running = false; /*Release the mutex*/
+    lvgl_timer_debug_set_phase(9U);
 
     LV_TRACE_TIMER("finished (%" LV_PRIu32 " ms until the next timer call)", time_until_next);
     lv_unlock();
+    lvgl_timer_debug_set_phase(10U);
 
     LV_PROFILER_TIMER_END;
     return time_until_next;

@@ -56,6 +56,42 @@ static bool alpha_test_area_on_obj(lv_obj_t * obj, const lv_area_t * area);
 /**********************
  *  STATIC VARIABLES
  **********************/
+volatile uint32_t g_lvgl_refr_debug_phase;
+volatile uint32_t g_lvgl_refr_debug_change_count;
+volatile uint32_t g_lvgl_refr_debug_last_tick;
+volatile uint32_t g_lvgl_transform_debug_phase;
+volatile uint32_t g_lvgl_transform_debug_change_count;
+volatile uint32_t g_lvgl_transform_debug_last_tick;
+volatile uint32_t g_lvgl_transform_debug_layer_get_area_count;
+volatile uint32_t g_lvgl_draw_debug_phase;
+volatile uint32_t g_lvgl_draw_debug_change_count;
+volatile uint32_t g_lvgl_draw_debug_last_tick;
+volatile uint32_t g_lvgl_draw_debug_transform_loop_count;
+volatile uint32_t g_lvgl_draw_debug_clip_corner_count;
+
+/**********************
+ *   STATIC FUNCTIONS
+ **********************/
+static void lvgl_refr_debug_set_phase(uint32_t phase)
+{
+    g_lvgl_refr_debug_phase = phase;
+    g_lvgl_refr_debug_change_count++;
+    g_lvgl_refr_debug_last_tick = lv_tick_get();
+}
+
+static void lvgl_transform_debug_set_phase(uint32_t phase)
+{
+    g_lvgl_transform_debug_phase = phase;
+    g_lvgl_transform_debug_change_count++;
+    g_lvgl_transform_debug_last_tick = lv_tick_get();
+}
+
+static void lvgl_draw_debug_set_phase(uint32_t phase)
+{
+    g_lvgl_draw_debug_phase = phase;
+    g_lvgl_draw_debug_change_count++;
+    g_lvgl_draw_debug_last_tick = lv_tick_get();
+}
 
 /**********************
  *      MACROS
@@ -185,6 +221,8 @@ void lv_obj_redraw(lv_layer_t * layer, lv_obj_t * obj)
                 lv_obj_send_event(obj, LV_EVENT_DRAW_POST_END, layer);
             }
             else {
+                g_lvgl_draw_debug_clip_corner_count++;
+                lvgl_draw_debug_set_phase(31U);
                 lv_layer_t * layer_children;
                 lv_draw_mask_rect_dsc_t mask_draw_dsc;
                 lv_draw_mask_rect_dsc_init(&mask_draw_dsc);
@@ -200,6 +238,7 @@ void lv_obj_redraw(lv_layer_t * layer, lv_obj_t * obj)
                 lv_area_t bottom = obj->coords;
                 bottom.y1 = bottom.y2 - rout + 1;
                 if(lv_area_intersect(&bottom, &bottom, &layer->_clip_area)) {
+                    lvgl_draw_debug_set_phase(32U);
                     layer_children = lv_draw_layer_create(layer, LV_COLOR_FORMAT_ARGB8888, &bottom);
 
                     for(i = 0; i < child_cnt; i++) {
@@ -216,11 +255,13 @@ void lv_obj_redraw(lv_layer_t * layer, lv_obj_t * obj)
 
                     img_draw_dsc.src = layer_children;
                     lv_draw_layer(layer, &img_draw_dsc, &bottom);
+                    lvgl_draw_debug_set_phase(33U);
                 }
 
                 lv_area_t top = obj->coords;
                 top.y2 = top.y1 + rout - 1;
                 if(lv_area_intersect(&top, &top, &layer->_clip_area)) {
+                    lvgl_draw_debug_set_phase(34U);
                     layer_children = lv_draw_layer_create(layer, LV_COLOR_FORMAT_ARGB8888, &top);
 
                     for(i = 0; i < child_cnt; i++) {
@@ -237,6 +278,7 @@ void lv_obj_redraw(lv_layer_t * layer, lv_obj_t * obj)
 
                     img_draw_dsc.src = layer_children;
                     lv_draw_layer(layer, &img_draw_dsc, &top);
+                    lvgl_draw_debug_set_phase(35U);
 
                 }
 
@@ -244,6 +286,7 @@ void lv_obj_redraw(lv_layer_t * layer, lv_obj_t * obj)
                 mid.y1 += rout;
                 mid.y2 -= rout;
                 if(lv_area_intersect(&mid, &mid, &layer->_clip_area)) {
+                    lvgl_draw_debug_set_phase(36U);
                     layer->_clip_area = mid;
                     for(i = 0; i < child_cnt; i++) {
                         lv_obj_t * child = obj->spec_attr->children[i];
@@ -254,6 +297,7 @@ void lv_obj_redraw(lv_layer_t * layer, lv_obj_t * obj)
                     lv_obj_send_event(obj, LV_EVENT_DRAW_POST_BEGIN, layer);
                     lv_obj_send_event(obj, LV_EVENT_DRAW_POST, layer);
                     lv_obj_send_event(obj, LV_EVENT_DRAW_POST_END, layer);
+                    lvgl_draw_debug_set_phase(37U);
 
                 }
 
@@ -361,6 +405,7 @@ void lv_refr_set_disp_refreshing(lv_display_t * disp)
 
 void lv_display_refr_timer(lv_timer_t * tmr)
 {
+    lvgl_refr_debug_set_phase(1U);
     LV_PROFILER_REFR_BEGIN;
     LV_TRACE_REFR("begin");
 
@@ -391,6 +436,7 @@ void lv_display_refr_timer(lv_timer_t * tmr)
     }
 
     lv_result_t res = lv_display_send_event(disp_refr, LV_EVENT_REFR_START, NULL);
+    lvgl_refr_debug_set_phase(2U);
     if(res == LV_RESULT_INVALID) {
         LV_TRACE_REFR("deleted");
         LV_PROFILER_REFR_END;
@@ -398,6 +444,7 @@ void lv_display_refr_timer(lv_timer_t * tmr)
     }
 
     /*Refresh the screen's layout if required*/
+    lvgl_refr_debug_set_phase(3U);
     LV_PROFILER_LAYOUT_BEGIN_TAG("layout");
     lv_obj_update_layout(disp_refr->act_scr);
     if(disp_refr->prev_scr) lv_obj_update_layout(disp_refr->prev_scr);
@@ -414,8 +461,11 @@ void lv_display_refr_timer(lv_timer_t * tmr)
         goto refr_finish;
     }
 
+    lvgl_refr_debug_set_phase(4U);
     lv_refr_join_area();
+    lvgl_refr_debug_set_phase(5U);
     refr_sync_areas();
+    lvgl_refr_debug_set_phase(6U);
     refr_invalid_areas();
 
     if(disp_refr->inv_p == 0) goto refr_finish;
@@ -438,12 +488,14 @@ void lv_display_refr_timer(lv_timer_t * tmr)
     disp_refr->inv_p = 0;
 
 refr_finish:
+    lvgl_refr_debug_set_phase(7U);
 
 #if LV_DRAW_SW_COMPLEX == 1
     lv_draw_sw_mask_cleanup();
 #endif
 
     lv_display_send_event(disp_refr, LV_EVENT_REFR_READY, NULL);
+    lvgl_refr_debug_set_phase(8U);
 
     LV_TRACE_REFR("finished");
     LV_PROFILER_REFR_END;
@@ -528,10 +580,12 @@ void lv_obj_refr(lv_layer_t * layer, lv_obj_t * obj)
     }
 #endif /* LV_DRAW_TRANSFORM_USE_MATRIX */
     else {
+        lvgl_draw_debug_set_phase(41U);
         lv_area_t layer_area_full;
         lv_area_t obj_draw_size;
         lv_result_t res = layer_get_area(layer, obj, layer_type, &layer_area_full, &obj_draw_size);
         if(res != LV_RESULT_OK) {
+            lvgl_draw_debug_set_phase(42U);
             layer->opa = layer_opa_ori;
             layer->recolor = layer_recolor;
             return;
@@ -554,6 +608,8 @@ void lv_obj_refr(lv_layer_t * layer, lv_obj_t * obj)
         layer_area_act.y2 = layer_area_full.y1;
 
         while(layer_area_act.y2 < layer_area_full.y2) {
+            g_lvgl_draw_debug_transform_loop_count++;
+            lvgl_draw_debug_set_phase(43U);
             /* Test with an RGB layer size (which is larger than the ARGB layer size)
              * If it really doesn't need alpha use it. Else switch to the ARGB size*/
             layer_area_act.y2 = layer_area_act.y1 + max_rgb_row_height - 1;
@@ -567,8 +623,10 @@ void lv_obj_refr(lv_layer_t * layer, lv_obj_t * obj)
                 if(layer_area_act.y2 > layer_area_full.y2) layer_area_act.y2 = layer_area_full.y2;
             }
 
+            lvgl_draw_debug_set_phase(44U);
             lv_layer_t * new_layer = lv_draw_layer_create(layer,
                                                           area_need_alpha ? LV_COLOR_FORMAT_ARGB8888 : LV_COLOR_FORMAT_NATIVE, &layer_area_act);
+            lvgl_draw_debug_set_phase(45U);
             lv_obj_redraw(new_layer, obj);
 
             lv_point_t pivot = {
@@ -602,10 +660,13 @@ void lv_obj_refr(lv_layer_t * layer, lv_obj_t * obj)
             layer_draw_dsc.image_area = obj_draw_size;
             layer_draw_dsc.src = new_layer;
 
+            lvgl_draw_debug_set_phase(46U);
             lv_draw_layer(layer, &layer_draw_dsc, &layer_area_act);
+            lvgl_draw_debug_set_phase(47U);
 
             layer_area_act.y1 = layer_area_act.y2 + 1;
         }
+        lvgl_draw_debug_set_phase(48U);
     }
 
     /* Restore the original layer opa and recolor */
@@ -1193,11 +1254,15 @@ static lv_result_t layer_get_area(lv_layer_t * layer, lv_obj_t * obj, lv_layer_t
     lv_area_increase(obj_draw_size_out, ext_draw_size, ext_draw_size);
 
     if(layer_type == LV_LAYER_TYPE_TRANSFORM) {
+        g_lvgl_transform_debug_layer_get_area_count++;
+        lvgl_transform_debug_set_phase(11U);
         /*Get the transformed area and clip it to the current clip area.
          *This area needs to be updated on the screen.*/
         lv_area_t clip_coords_for_obj;
         lv_area_t tranf_coords = *obj_draw_size_out;
+        lvgl_transform_debug_set_phase(12U);
         lv_obj_get_transformed_area(obj, &tranf_coords, LV_OBJ_POINT_TRANSFORM_FLAG_NONE);
+        lvgl_transform_debug_set_phase(13U);
         if(!lv_area_intersect(&clip_coords_for_obj, &layer->_clip_area, &tranf_coords)) {
             return LV_RESULT_INVALID;
         }
@@ -1206,13 +1271,16 @@ static lv_result_t layer_get_area(lv_layer_t * layer, lv_obj_t * obj, lv_layer_t
          *It will tell which area of the non-transformed widget needs to be redrawn
          *in order to cover transformed area after transformation.*/
         lv_area_t inverse_clip_coords_for_obj = clip_coords_for_obj;
+        lvgl_transform_debug_set_phase(14U);
         lv_obj_get_transformed_area(obj, &inverse_clip_coords_for_obj, LV_OBJ_POINT_TRANSFORM_FLAG_INVERSE);
+        lvgl_transform_debug_set_phase(15U);
         if(!lv_area_intersect(&inverse_clip_coords_for_obj, &inverse_clip_coords_for_obj, obj_draw_size_out)) {
             return LV_RESULT_INVALID;
         }
 
         *layer_area_out = inverse_clip_coords_for_obj;
         lv_area_increase(layer_area_out, 5, 5); /*To avoid rounding error*/
+        lvgl_transform_debug_set_phase(16U);
     }
     else if(layer_type == LV_LAYER_TYPE_SIMPLE) {
         lv_area_t clip_coords_for_obj;

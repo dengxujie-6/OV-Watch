@@ -18,6 +18,42 @@ extern volatile uint32_t g_lvgl_disp_flush_wait_count;
 extern volatile uint32_t g_lvgl_disp_flush_wait_timeout_count;
 extern volatile uint32_t g_lvgl_disp_dma_callback_count;
 extern volatile uint32_t g_lvgl_disp_last_wait_result;
+extern volatile uint32_t g_lvgl_disp_last_flush_tick_ms;
+extern volatile uint32_t g_lvgl_disp_last_flush_ready_tick_ms;
+extern volatile uint32_t g_lvgl_disp_last_wait_tick_ms;
+extern volatile uint32_t g_lvgl_disp_last_px_bytes;
+extern volatile int32_t g_lvgl_disp_last_area_x1;
+extern volatile int32_t g_lvgl_disp_last_area_y1;
+extern volatile int32_t g_lvgl_disp_last_area_x2;
+extern volatile int32_t g_lvgl_disp_last_area_y2;
+extern volatile uint32_t g_menu_press_debug_phase;
+extern volatile uint32_t g_menu_press_debug_change_count;
+extern volatile uint32_t g_menu_press_debug_last_tick;
+extern volatile uint32_t g_menu_press_debug_effect_on_count;
+extern volatile uint32_t g_menu_press_debug_effect_off_count;
+extern volatile uint32_t g_lvgl_timer_debug_phase;
+extern volatile uint32_t g_lvgl_timer_debug_change_count;
+extern volatile uint32_t g_lvgl_timer_debug_last_tick;
+extern volatile uint32_t g_lvgl_refr_debug_phase;
+extern volatile uint32_t g_lvgl_refr_debug_change_count;
+extern volatile uint32_t g_lvgl_refr_debug_last_tick;
+extern volatile uint32_t g_lvgl_transform_debug_phase;
+extern volatile uint32_t g_lvgl_transform_debug_change_count;
+extern volatile uint32_t g_lvgl_transform_debug_last_tick;
+extern volatile uint32_t g_lvgl_transform_debug_layer_get_area_count;
+extern volatile uint32_t g_lvgl_draw_debug_phase;
+extern volatile uint32_t g_lvgl_draw_debug_change_count;
+extern volatile uint32_t g_lvgl_draw_debug_last_tick;
+extern volatile uint32_t g_lvgl_draw_debug_transform_loop_count;
+extern volatile uint32_t g_lvgl_draw_debug_clip_corner_count;
+extern volatile uint32_t g_lvgl_obj_transform_debug_phase;
+extern volatile uint32_t g_lvgl_obj_transform_debug_change_count;
+extern volatile uint32_t g_lvgl_obj_transform_debug_last_tick;
+extern volatile uint32_t g_lvgl_obj_transform_debug_call_count;
+extern volatile uint32_t g_lvgl_log_seq;
+extern volatile uint32_t g_lvgl_log_level;
+extern volatile uint32_t g_lvgl_log_last_tick;
+extern char g_lvgl_log_text[96];
 
 /**
  * @brief 蓝牙调试打印任务入口。
@@ -32,12 +68,47 @@ void Print_Task(void *argument)
     uint32_t lvgl_phase;
     uint32_t task_index;
     uint32_t lvgl_stack_free_bytes;
+    uint32_t menu_press_phase;
+    uint32_t menu_press_change_count;
+    uint32_t menu_press_last_tick;
+    uint32_t menu_press_effect_on_count;
+    uint32_t menu_press_effect_off_count;
     uint32_t flush_request_count;
     uint32_t flush_ready_count;
     uint32_t flush_wait_count;
     uint32_t flush_wait_timeout_count;
     uint32_t dma_callback_count;
     uint32_t flush_last_wait_result;
+    uint32_t flush_last_tick_ms;
+    uint32_t flush_last_ready_tick_ms;
+    uint32_t flush_last_wait_tick_ms;
+    uint32_t flush_last_px_bytes;
+    int32_t flush_last_area_x1;
+    int32_t flush_last_area_y1;
+    int32_t flush_last_area_x2;
+    int32_t flush_last_area_y2;
+    uint32_t timer_debug_phase;
+    uint32_t timer_debug_change_count;
+    uint32_t timer_debug_last_tick;
+    uint32_t refr_debug_phase;
+    uint32_t refr_debug_change_count;
+    uint32_t refr_debug_last_tick;
+    uint32_t transform_debug_phase;
+    uint32_t transform_debug_change_count;
+    uint32_t transform_debug_last_tick;
+    uint32_t transform_debug_layer_get_area_count;
+    uint32_t draw_debug_phase;
+    uint32_t draw_debug_change_count;
+    uint32_t draw_debug_last_tick;
+    uint32_t draw_debug_transform_loop_count;
+    uint32_t draw_debug_clip_corner_count;
+    uint32_t obj_transform_debug_phase;
+    uint32_t obj_transform_debug_change_count;
+    uint32_t obj_transform_debug_last_tick;
+    uint32_t obj_transform_debug_call_count;
+    uint32_t lvgl_log_seq;
+    uint32_t lvgl_log_level;
+    uint32_t lvgl_log_last_tick;
     uint32_t total_size;
     uint32_t free_size;
     uint32_t used_size;
@@ -46,7 +117,22 @@ void Print_Task(void *argument)
     uint32_t frag_pct;
     uint32_t max_used;
     uint32_t last_update_ms;
+    uint32_t mem_debug_tag;
+    uint32_t mem_debug_seq;
     static uint32_t last_warned_stack_bytes[FREERTOS_DEBUG_MAX_TASKS];
+    static uint32_t s_last_menu_phase;
+    static uint32_t s_last_menu_change_count;
+    static uint32_t s_last_flush_request_count;
+    static uint32_t s_last_flush_ready_count;
+    static uint32_t s_last_flush_wait_count;
+    static uint32_t s_last_flush_timeout_count;
+    static uint32_t s_last_timer_debug_change_count;
+    static uint32_t s_last_refr_debug_change_count;
+    static uint32_t s_last_transform_debug_change_count;
+    static uint32_t s_last_draw_debug_change_count;
+    static uint32_t s_last_obj_transform_debug_change_count;
+    static uint32_t s_last_lvgl_log_seq;
+    static uint32_t s_last_mem_debug_seq;
 
     (void)argument;
 
@@ -79,15 +165,52 @@ void Print_Task(void *argument)
         frag_pct = g_lvgl_mem_frag_pct;
         max_used = g_lvgl_mem_max_used;
         last_update_ms = g_lvgl_mem_last_update_ms;
+        mem_debug_tag = g_lvgl_mem_debug_tag;
+        mem_debug_seq = g_lvgl_mem_debug_seq;
         used_size = (total_size >= free_size) ? (total_size - free_size) : 0U;
         lvgl_phase = g_lvgl_task_phase;
         lvgl_stack_free_bytes = 0U;
+        menu_press_phase = g_menu_press_debug_phase;
+        menu_press_change_count = g_menu_press_debug_change_count;
+        menu_press_last_tick = g_menu_press_debug_last_tick;
+        menu_press_effect_on_count = g_menu_press_debug_effect_on_count;
+        menu_press_effect_off_count = g_menu_press_debug_effect_off_count;
         flush_request_count = g_lvgl_disp_flush_request_count;
         flush_ready_count = g_lvgl_disp_flush_ready_count;
         flush_wait_count = g_lvgl_disp_flush_wait_count;
         flush_wait_timeout_count = g_lvgl_disp_flush_wait_timeout_count;
         dma_callback_count = g_lvgl_disp_dma_callback_count;
         flush_last_wait_result = g_lvgl_disp_last_wait_result;
+        flush_last_tick_ms = g_lvgl_disp_last_flush_tick_ms;
+        flush_last_ready_tick_ms = g_lvgl_disp_last_flush_ready_tick_ms;
+        flush_last_wait_tick_ms = g_lvgl_disp_last_wait_tick_ms;
+        flush_last_px_bytes = g_lvgl_disp_last_px_bytes;
+        flush_last_area_x1 = g_lvgl_disp_last_area_x1;
+        flush_last_area_y1 = g_lvgl_disp_last_area_y1;
+        flush_last_area_x2 = g_lvgl_disp_last_area_x2;
+        flush_last_area_y2 = g_lvgl_disp_last_area_y2;
+        timer_debug_phase = g_lvgl_timer_debug_phase;
+        timer_debug_change_count = g_lvgl_timer_debug_change_count;
+        timer_debug_last_tick = g_lvgl_timer_debug_last_tick;
+        refr_debug_phase = g_lvgl_refr_debug_phase;
+        refr_debug_change_count = g_lvgl_refr_debug_change_count;
+        refr_debug_last_tick = g_lvgl_refr_debug_last_tick;
+        transform_debug_phase = g_lvgl_transform_debug_phase;
+        transform_debug_change_count = g_lvgl_transform_debug_change_count;
+        transform_debug_last_tick = g_lvgl_transform_debug_last_tick;
+        transform_debug_layer_get_area_count = g_lvgl_transform_debug_layer_get_area_count;
+        draw_debug_phase = g_lvgl_draw_debug_phase;
+        draw_debug_change_count = g_lvgl_draw_debug_change_count;
+        draw_debug_last_tick = g_lvgl_draw_debug_last_tick;
+        draw_debug_transform_loop_count = g_lvgl_draw_debug_transform_loop_count;
+        draw_debug_clip_corner_count = g_lvgl_draw_debug_clip_corner_count;
+        obj_transform_debug_phase = g_lvgl_obj_transform_debug_phase;
+        obj_transform_debug_change_count = g_lvgl_obj_transform_debug_change_count;
+        obj_transform_debug_last_tick = g_lvgl_obj_transform_debug_last_tick;
+        obj_transform_debug_call_count = g_lvgl_obj_transform_debug_call_count;
+        lvgl_log_seq = g_lvgl_log_seq;
+        lvgl_log_level = g_lvgl_log_level;
+        lvgl_log_last_tick = g_lvgl_log_last_tick;
 
         for(task_index = 0U; task_index < g_freertos_debug_task_count; task_index++) {
             const char *task_name = g_freertos_debug_tasks[task_index].name;
@@ -100,21 +223,30 @@ void Print_Task(void *argument)
 
         report_len = snprintf(report_buffer,
                               sizeof(report_buffer),
-                              "mem u=%lu f=%lu b=%lu p=%lu m=%lu ls=%lu lp=%lu fq=%lu fr=%lu fw=%lu ft=%lu dc=%lu wr=%lu t=%lu\r\n",
+                              "mem u=%lu f=%lu b=%lu p=%lu g=%lu m=%lu ls=%lu lp=%lu mp=%lu fq=%lu fr=%lu fw=%lu ft=%lu dc=%lu wr=%lu t=%lu tp=%lu rp=%lu xp=%lu dp=%lu op=%lu dl=%lu dk=%lu\r\n",
                               (unsigned long)used_size,
                               (unsigned long)free_size,
                               (unsigned long)free_biggest_size,
                               (unsigned long)used_pct,
+                              (unsigned long)frag_pct,
                               (unsigned long)max_used,
                               (unsigned long)lvgl_stack_free_bytes,
                               (unsigned long)lvgl_phase,
+                              (unsigned long)menu_press_phase,
                               (unsigned long)flush_request_count,
                               (unsigned long)flush_ready_count,
                               (unsigned long)flush_wait_count,
                               (unsigned long)flush_wait_timeout_count,
                               (unsigned long)dma_callback_count,
                               (unsigned long)flush_last_wait_result,
-                              (unsigned long)last_update_ms);
+                              (unsigned long)last_update_ms,
+                              (unsigned long)timer_debug_phase,
+                              (unsigned long)refr_debug_phase,
+                              (unsigned long)transform_debug_phase,
+                              (unsigned long)draw_debug_phase,
+                              (unsigned long)obj_transform_debug_phase,
+                              (unsigned long)draw_debug_transform_loop_count,
+                              (unsigned long)draw_debug_clip_corner_count);
 
         if((HwAccess.bluetooth.send != NULL) &&
            (report_len > 0) &&
@@ -122,6 +254,123 @@ void Print_Task(void *argument)
             (void)HwAccess.bluetooth.send((const uint8_t *)report_buffer,
                                           (uint16_t)report_len,
                                           50U);
+        }
+
+        if((HwAccess.bluetooth.send != NULL) &&
+           ((menu_press_phase != s_last_menu_phase) ||
+            (menu_press_change_count != s_last_menu_change_count) ||
+            (flush_wait_timeout_count != s_last_flush_timeout_count) ||
+            (timer_debug_change_count != s_last_timer_debug_change_count) ||
+            (refr_debug_change_count != s_last_refr_debug_change_count) ||
+            (transform_debug_change_count != s_last_transform_debug_change_count) ||
+            (draw_debug_change_count != s_last_draw_debug_change_count) ||
+            (obj_transform_debug_change_count != s_last_obj_transform_debug_change_count))) {
+            report_len = snprintf(report_buffer,
+                                  sizeof(report_buffer),
+                                  "menu ph=%lu ch=%lu ton=%lu tof=%lu lt=%lu lp=%lu dq=%lu dr=%lu dw=%lu dt=%lu px=%lu a=%ld,%ld,%ld,%ld ft=%lu frt=%lu fwt=%lu wr=%lu\r\n",
+                                  (unsigned long)menu_press_phase,
+                                  (unsigned long)menu_press_change_count,
+                                  (unsigned long)menu_press_effect_on_count,
+                                  (unsigned long)menu_press_effect_off_count,
+                                  (unsigned long)menu_press_last_tick,
+                                  (unsigned long)lvgl_phase,
+                                  (unsigned long)(flush_request_count - s_last_flush_request_count),
+                                  (unsigned long)(flush_ready_count - s_last_flush_ready_count),
+                                  (unsigned long)(flush_wait_count - s_last_flush_wait_count),
+                                  (unsigned long)(flush_wait_timeout_count - s_last_flush_timeout_count),
+                                  (unsigned long)flush_last_px_bytes,
+                                  (long)flush_last_area_x1,
+                                  (long)flush_last_area_y1,
+                                  (long)flush_last_area_x2,
+                                  (long)flush_last_area_y2,
+                                  (unsigned long)flush_last_tick_ms,
+                                  (unsigned long)flush_last_ready_tick_ms,
+                                  (unsigned long)flush_last_wait_tick_ms,
+                                  (unsigned long)flush_last_wait_result);
+            if((report_len > 0) && ((size_t)report_len < sizeof(report_buffer))) {
+                (void)HwAccess.bluetooth.send((const uint8_t *)report_buffer,
+                                              (uint16_t)report_len,
+                                              50U);
+            }
+
+            report_len = snprintf(report_buffer,
+                                  sizeof(report_buffer),
+                                  "core tp=%lu tc=%lu tt=%lu rp=%lu rc=%lu rt=%lu xp=%lu xc=%lu xt=%lu xl=%lu dp=%lu dc=%lu dt=%lu dl=%lu dk=%lu op=%lu oc=%lu ot=%lu on=%lu\r\n",
+                                  (unsigned long)timer_debug_phase,
+                                  (unsigned long)timer_debug_change_count,
+                                  (unsigned long)timer_debug_last_tick,
+                                  (unsigned long)refr_debug_phase,
+                                  (unsigned long)refr_debug_change_count,
+                                  (unsigned long)refr_debug_last_tick,
+                                  (unsigned long)transform_debug_phase,
+                                  (unsigned long)transform_debug_change_count,
+                                  (unsigned long)transform_debug_last_tick,
+                                  (unsigned long)transform_debug_layer_get_area_count,
+                                  (unsigned long)draw_debug_phase,
+                                  (unsigned long)draw_debug_change_count,
+                                  (unsigned long)draw_debug_last_tick,
+                                  (unsigned long)draw_debug_transform_loop_count,
+                                  (unsigned long)draw_debug_clip_corner_count,
+                                  (unsigned long)obj_transform_debug_phase,
+                                  (unsigned long)obj_transform_debug_change_count,
+                                  (unsigned long)obj_transform_debug_last_tick,
+                                  (unsigned long)obj_transform_debug_call_count);
+            if((report_len > 0) && ((size_t)report_len < sizeof(report_buffer))) {
+                (void)HwAccess.bluetooth.send((const uint8_t *)report_buffer,
+                                              (uint16_t)report_len,
+                                              50U);
+            }
+        }
+
+        s_last_menu_phase = menu_press_phase;
+        s_last_menu_change_count = menu_press_change_count;
+        s_last_flush_request_count = flush_request_count;
+        s_last_flush_ready_count = flush_ready_count;
+        s_last_flush_wait_count = flush_wait_count;
+        s_last_flush_timeout_count = flush_wait_timeout_count;
+        s_last_timer_debug_change_count = timer_debug_change_count;
+        s_last_refr_debug_change_count = refr_debug_change_count;
+        s_last_transform_debug_change_count = transform_debug_change_count;
+        s_last_draw_debug_change_count = draw_debug_change_count;
+        s_last_obj_transform_debug_change_count = obj_transform_debug_change_count;
+
+        if((HwAccess.bluetooth.send != NULL) && (lvgl_log_seq != s_last_lvgl_log_seq)) {
+            report_len = snprintf(report_buffer,
+                                  sizeof(report_buffer),
+                                  "lvlog s=%lu l=%lu t=%lu %s\r\n",
+                                  (unsigned long)lvgl_log_seq,
+                                  (unsigned long)lvgl_log_level,
+                                  (unsigned long)lvgl_log_last_tick,
+                                  g_lvgl_log_text);
+            if((report_len > 0) && ((size_t)report_len < sizeof(report_buffer))) {
+                (void)HwAccess.bluetooth.send((const uint8_t *)report_buffer,
+                                              (uint16_t)report_len,
+                                              50U);
+            }
+            s_last_lvgl_log_seq = lvgl_log_seq;
+        }
+
+        if((HwAccess.bluetooth.send != NULL) && (mem_debug_seq != s_last_mem_debug_seq)) {
+            report_len = snprintf(report_buffer,
+                                  sizeof(report_buffer),
+                                  "memsnap s=%lu tag=%lu u=%lu f=%lu b=%lu p=%lu g=%lu m=%lu t=%lu mp=%lu lp=%lu\r\n",
+                                  (unsigned long)mem_debug_seq,
+                                  (unsigned long)mem_debug_tag,
+                                  (unsigned long)used_size,
+                                  (unsigned long)free_size,
+                                  (unsigned long)free_biggest_size,
+                                  (unsigned long)used_pct,
+                                  (unsigned long)frag_pct,
+                                  (unsigned long)max_used,
+                                  (unsigned long)last_update_ms,
+                                  (unsigned long)menu_press_phase,
+                                  (unsigned long)lvgl_phase);
+            if((report_len > 0) && ((size_t)report_len < sizeof(report_buffer))) {
+                (void)HwAccess.bluetooth.send((const uint8_t *)report_buffer,
+                                              (uint16_t)report_len,
+                                              50U);
+            }
+            s_last_mem_debug_seq = mem_debug_seq;
         }
 
         if(HwAccess.bluetooth.send != NULL) {

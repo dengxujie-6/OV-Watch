@@ -10,6 +10,8 @@
 #include "main.h"
 #include "page_manager.h"
 
+#include <string.h>
+
 #define LVGL_TASK_DELAY_MS 2U
 #define LVGL_MEM_MONITOR_PERIOD_MS 200U
 
@@ -32,10 +34,35 @@ volatile uint32_t g_lvgl_mem_used_pct;
 volatile uint32_t g_lvgl_mem_frag_pct;
 volatile uint32_t g_lvgl_mem_max_used;
 volatile uint32_t g_lvgl_mem_last_update_ms;
+volatile uint32_t g_lvgl_mem_debug_tag;
+volatile uint32_t g_lvgl_mem_debug_seq;
 volatile uint32_t g_lvgl_task_phase;
+volatile uint32_t g_lvgl_log_seq;
+volatile uint32_t g_lvgl_log_level;
+volatile uint32_t g_lvgl_log_last_tick;
+char g_lvgl_log_text[96];
 
 void lv_port_disp_init(void);
 void lv_port_indev_init(void);
+
+void LVGL_Task_LogPrint(lv_log_level_t level, const char * txt)
+{
+    size_t copy_len = 0U;
+
+    g_lvgl_log_level = (uint32_t)level;
+    g_lvgl_log_last_tick = HAL_GetTick();
+
+    if(txt != NULL) {
+        copy_len = strlen(txt);
+        if(copy_len >= sizeof(g_lvgl_log_text)) {
+            copy_len = sizeof(g_lvgl_log_text) - 1U;
+        }
+        memcpy(g_lvgl_log_text, txt, copy_len);
+    }
+
+    g_lvgl_log_text[copy_len] = '\0';
+    g_lvgl_log_seq++;
+}
 
 /**
  * @brief LVGL 任务入口。
@@ -159,4 +186,30 @@ static void LVGL_Task_UpdateMemMonitor(void)
     g_lvgl_mem_frag_pct = (uint32_t)mon.frag_pct;
     g_lvgl_mem_max_used = (uint32_t)mon.max_used;
     g_lvgl_mem_last_update_ms = now_ms;
+}
+
+/**
+ * @brief 在 GUI/LVGL 任务上下文中立即抓取一份 LVGL 内存快照。
+ *
+ * 该接口用于在菜单按压、定时器触发、页面跳转前后等关键阶段补一帧即时快照，
+ * 便于把 “used / frag / biggest free” 和具体 UI 阶段对齐。
+ *
+ * @param tag 调试标签，由调用方传入，用于区分抓拍时机。
+ */
+void LVGL_Task_DebugCaptureMem(uint32_t tag)
+{
+    lv_mem_monitor_t mon;
+
+    lv_mem_monitor(&mon);
+
+    g_lvgl_mem_monitor = mon;
+    g_lvgl_mem_total_size = (uint32_t)mon.total_size;
+    g_lvgl_mem_free_size = (uint32_t)mon.free_size;
+    g_lvgl_mem_free_biggest_size = (uint32_t)mon.free_biggest_size;
+    g_lvgl_mem_used_pct = (uint32_t)mon.used_pct;
+    g_lvgl_mem_frag_pct = (uint32_t)mon.frag_pct;
+    g_lvgl_mem_max_used = (uint32_t)mon.max_used;
+    g_lvgl_mem_last_update_ms = HAL_GetTick();
+    g_lvgl_mem_debug_tag = tag;
+    g_lvgl_mem_debug_seq++;
 }

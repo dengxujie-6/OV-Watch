@@ -43,6 +43,20 @@ static bool has_blur(const lv_obj_t * obj);
 /**********************
  *  STATIC VARIABLES
  **********************/
+volatile uint32_t g_lvgl_obj_transform_debug_phase;
+volatile uint32_t g_lvgl_obj_transform_debug_change_count;
+volatile uint32_t g_lvgl_obj_transform_debug_last_tick;
+volatile uint32_t g_lvgl_obj_transform_debug_call_count;
+
+/**********************
+ *   STATIC FUNCTIONS
+ **********************/
+static void lvgl_obj_transform_debug_set_phase(uint32_t phase)
+{
+    g_lvgl_obj_transform_debug_phase = phase;
+    g_lvgl_obj_transform_debug_change_count++;
+    g_lvgl_obj_transform_debug_last_tick = lv_tick_get();
+}
 
 /**********************
  *      MACROS
@@ -1064,6 +1078,8 @@ void lv_obj_get_transformed_area(const lv_obj_t * obj, lv_area_t * area, lv_obj_
 {
     LV_CHECK_ARG(area != NULL, return);
     LV_ASSERT_OBJ(obj, MY_CLASS);
+    g_lvgl_obj_transform_debug_call_count++;
+    lvgl_obj_transform_debug_set_phase(21U);
 
     lv_point_t p[4] = {
         {area->x1, area->y1},
@@ -1073,11 +1089,13 @@ void lv_obj_get_transformed_area(const lv_obj_t * obj, lv_area_t * area, lv_obj_
     };
 
     lv_obj_transform_point_array(obj, p, 4, flags);
+    lvgl_obj_transform_debug_set_phase(22U);
 
     area->x1 = LV_MIN4(p[0].x, p[1].x, p[2].x, p[3].x);
     area->x2 = LV_MAX4(p[0].x, p[1].x, p[2].x, p[3].x);
     area->y1 = LV_MIN4(p[0].y, p[1].y, p[2].y, p[3].y);
     area->y2 = LV_MAX4(p[0].y, p[1].y, p[2].y, p[3].y);
+    lvgl_obj_transform_debug_set_phase(23U);
 }
 
 typedef struct {

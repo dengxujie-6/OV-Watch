@@ -14,6 +14,7 @@
 #include "calculator_page.h"
 #include "compass_page.h"
 #include "heart_rate_page.h"
+#include "LVGL_Task.h"
 #include "stopwatch_page.h"
 #include "test_page.h"
 #include "title_page.h"
@@ -47,7 +48,6 @@ typedef struct {
     const char * title;            /**< 菜单标题，指向静态字符串。 */
     lv_obj_t * icon_bg;            /**< 图标背景对象，随按钮删除。 */
     lv_obj_t * title_label;        /**< 标题 label，随按钮删除。 */
-    lv_indev_t * pressed_indev;    /**< 当前按下的输入设备，不负责释放。 */
 } menu_item_ctx_t;
 
 static menu_item_ctx_t s_menu_item_ctx[MENU_ITEM_COUNT];
@@ -55,6 +55,32 @@ static menu_page_t * s_menu_page;
 static int32_t s_menu_saved_scroll_y;
 static bool s_menu_saved_scroll_valid;
 static const char * s_menu_pending_title;
+volatile uint32_t g_menu_press_debug_phase;
+volatile uint32_t g_menu_press_debug_change_count;
+volatile uint32_t g_menu_press_debug_last_tick;
+volatile uint32_t g_menu_press_debug_effect_on_count;
+volatile uint32_t g_menu_press_debug_effect_off_count;
+
+#define MENU_MEM_TAG_PRESSED           101U
+#define MENU_MEM_TAG_RELEASED          104U
+#define MENU_MEM_TAG_CLICKED_BEFORE    106U
+#define MENU_MEM_TAG_CLICKED_AFTER     107U
+
+/**
+ * @brief 更新菜单按压调试阶段。
+ *
+ * 该函数只记录阶段号与时间戳，不改变业务逻辑。
+ * 通过统计阶段切换次数与最近一次切换时间，辅助判断卡顿发生在
+ * “事件回调内部”还是“事件回调返回后的 LVGL 刷新链路”。
+ *
+ * @param phase 当前阶段编号。
+ */
+static void menu_press_debug_set_phase(uint32_t phase)
+{
+    g_menu_press_debug_phase = phase;
+    g_menu_press_debug_change_count++;
+    g_menu_press_debug_last_tick = lv_tick_get();
+}
 
 /**
  * @brief 在 LVGL 事件回调返回后再执行页面跳转。
@@ -99,22 +125,31 @@ static void menu_page_request_push(const GUI_Page_t * page, const char * title)
 static void menu_item_event_cb(lv_event_t * e)
 {
     lv_event_code_t code = lv_event_get_code(e);
+    lv_obj_t * target = lv_event_get_target(e);
     menu_item_ctx_t * ctx = (menu_item_ctx_t *)lv_event_get_user_data(e);
 
     if(code == LV_EVENT_PRESSED) {
-        if(!ctx) return;
-        ctx->pressed_indev = lv_event_get_indev(e);
+        menu_press_debug_set_phase(1U);
+        LVGL_Task_DebugCaptureMem(MENU_MEM_TAG_PRESSED);
+        if(target != NULL) {
+            lv_obj_add_state(target, LV_STATE_USER_1);
+        }
+        menu_press_debug_set_phase(2U);
     }
     else if(code == LV_EVENT_PRESS_LOST) {
-        // 滑动列表时 LVGL 会让按钮失去 press 状态，但手指还没松开，保留高亮反馈。
+        // 滑动列表时保留自定义高亮，避免默认 PRESSED 态瞬间消失导致闪一下。
     }
     else if(code == LV_EVENT_RELEASED) {
-        if(ctx) {
-            ctx->pressed_indev = NULL;
+        menu_press_debug_set_phase(10U);
+        LVGL_Task_DebugCaptureMem(MENU_MEM_TAG_RELEASED);
+        if(target != NULL) {
+            lv_obj_clear_state(target, LV_STATE_USER_1);
         }
     }
     else if(code == LV_EVENT_CLICKED) {
         const char * title = ctx ? ctx->title : NULL;
+
+        LVGL_Task_DebugCaptureMem(MENU_MEM_TAG_CLICKED_BEFORE);
 
         if(ctx && ctx->owner) {
             ctx->owner->last_clicked_btn = lv_event_get_target(e);
@@ -153,6 +188,8 @@ static void menu_item_event_cb(lv_event_t * e)
         else {
             menu_page_request_push(&TitlePage, title);
         }
+
+        LVGL_Task_DebugCaptureMem(MENU_MEM_TAG_CLICKED_AFTER);
     }
 }
 
@@ -174,6 +211,9 @@ static lv_obj_t * menu_item_create(lv_obj_t * parent, menu_page_t * owner,
     lv_obj_set_style_bg_color(btn, lv_color_hex(0x192027), LV_STATE_PRESSED);
     lv_obj_set_style_bg_opa(btn, LV_OPA_60, LV_STATE_PRESSED);
     lv_obj_set_style_translate_y(btn, 2, LV_STATE_PRESSED);
+    lv_obj_set_style_bg_color(btn, lv_color_hex(0x192027), LV_STATE_USER_1);
+    lv_obj_set_style_bg_opa(btn, LV_OPA_60, LV_STATE_USER_1);
+    lv_obj_set_style_translate_y(btn, 2, LV_STATE_USER_1);
 
     if(ctx) {
         memset(ctx, 0, sizeof(*ctx));
@@ -188,7 +228,6 @@ static lv_obj_t * menu_item_create(lv_obj_t * parent, menu_page_t * owner,
     lv_obj_set_size(icon_bg, 46, 46);
     lv_obj_set_style_radius(icon_bg, LV_RADIUS_CIRCLE, 0);
     lv_obj_set_style_bg_color(icon_bg, lv_color_hex(desc->icon_bg_hex), 0);
-    lv_obj_set_style_clip_corner(icon_bg, true, 0);
     lv_obj_set_style_border_width(icon_bg, 0, 0);
     lv_obj_set_style_pad_all(icon_bg, 0, 0);
     lv_obj_align(icon_bg, LV_ALIGN_LEFT_MID, 0, 0);
