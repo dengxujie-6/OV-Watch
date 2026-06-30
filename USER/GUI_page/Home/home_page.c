@@ -20,7 +20,7 @@ extern const lv_font_t my_font_source_han_10;
 extern const lv_font_t my_font_source_han_13;
 extern const lv_font_t my_font_source_han_18;
 extern const lv_font_t my_font_source_han_19;
-extern const lv_font_t my_font_source_han_20;
+extern const lv_font_t my_font_source_han_24;
 extern const lv_font_t my_font_source_han_38;
 
 // 屏幕逻辑尺寸，主页所有坐标都按 240 x 280 绝对像素布局。
@@ -86,17 +86,17 @@ struct home_page {
 static home_page_t * s_home_page;
 static const char * s_home_menu_preview_titles[] = {
     "日历", "计算器", "秒表", "动画", "卡包", "运动", "心率",
-    "血氧", "环境", "指南针", "游戏", "设置", "关于",
+    "血氧", "环境", "游戏", "设置", "关于",
 };
 static const char * s_home_menu_preview_icons[] = {
     LV_SYMBOL_LIST, LV_SYMBOL_SETTINGS, LV_SYMBOL_REFRESH, LV_SYMBOL_PLAY,
     LV_SYMBOL_DIRECTORY, LV_SYMBOL_UP, LV_SYMBOL_TINT, LV_SYMBOL_AUDIO,
-    LV_SYMBOL_HOME, LV_SYMBOL_DRIVE, LV_SYMBOL_PLAY, LV_SYMBOL_SETTINGS,
+    LV_SYMBOL_HOME, LV_SYMBOL_PLAY, LV_SYMBOL_SETTINGS,
     LV_SYMBOL_COPY,
 };
 static const uint32_t s_home_menu_preview_icon_colors[] = {
     0xff6b6b, 0xffa94d, 0xb197fc, 0x4dabf7, 0xffd43b, 0x51cf66, 0xff8787,
-    0x74c0fc, 0x63e6be, 0x91a7ff, 0xffc078, 0xadb5bd, 0xdee2e6,
+    0x74c0fc, 0x63e6be, 0xffc078, 0xadb5bd, 0xdee2e6,
 };
 
 static lv_indev_t * home_pointer_indev_get(void);
@@ -239,7 +239,7 @@ static lv_obj_t * home_menu_preview_item_create(lv_obj_t * parent, size_t index)
     lv_obj_t * title = lv_label_create(btn);
     lv_label_set_text(title, s_home_menu_preview_titles[index]);
     lv_obj_set_style_text_color(title, lv_color_white(), 0);
-    lv_obj_set_style_text_font(title, &my_font_source_han_20, 0);
+    lv_obj_set_style_text_font(title, &my_font_source_han_24, 0);
     lv_obj_align(title, LV_ALIGN_LEFT_MID, 62, 0);
 
     return btn;
@@ -298,7 +298,7 @@ static void home_dropdown_preview_create(home_page_t * page)
 
     lv_obj_t * title = lv_label_create(page->dropdown_preview);
     lv_label_set_text(title, "快捷菜单");
-    lv_obj_set_style_text_font(title, &my_font_source_han_20, 0);
+    lv_obj_set_style_text_font(title, &my_font_source_han_24, 0);
     lv_obj_set_style_text_color(title, lv_color_white(), 0);
     lv_obj_align(title, LV_ALIGN_TOP_LEFT, 0, 0);
 
@@ -314,13 +314,13 @@ static void home_dropdown_preview_create(home_page_t * page)
 
     lv_obj_t * icon = lv_label_create(panel);
     lv_label_set_text(icon, LV_SYMBOL_BLUETOOTH);
-    lv_obj_set_style_text_font(icon, &my_font_source_han_20, 0);
+    lv_obj_set_style_text_font(icon, &my_font_source_han_24, 0);
     lv_obj_set_style_text_color(icon, lv_color_hex(0x4eb6ff), 0);
     lv_obj_align(icon, LV_ALIGN_LEFT_MID, 14, 0);
 
     lv_obj_t * label = lv_label_create(panel);
     lv_label_set_text(label, "蓝牙");
-    lv_obj_set_style_text_font(label, &my_font_source_han_20, 0);
+    lv_obj_set_style_text_font(label, &my_font_source_han_24, 0);
     lv_obj_set_style_text_color(label, lv_color_white(), 0);
     lv_obj_align(label, LV_ALIGN_LEFT_MID, 48, 0);
 }

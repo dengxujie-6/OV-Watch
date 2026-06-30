@@ -11,7 +11,7 @@
 
 #include "hwaccess.h"
 
-extern const lv_font_t my_font_source_han_20;
+extern const lv_font_t my_font_source_han_24;
 
 struct dropdown_menu_page {
     lv_obj_t * root;
@@ -161,7 +161,7 @@ dropdown_menu_page_t * dropdown_menu_page_create(void)
     page->title_label = lv_label_create(page->root);
     if(page->title_label != NULL) {
         lv_label_set_text(page->title_label, "蹇嵎鑿滃崟");
-        lv_obj_set_style_text_font(page->title_label, &my_font_source_han_20, 0);
+        lv_obj_set_style_text_font(page->title_label, &my_font_source_han_24, 0);
         lv_obj_set_style_text_color(page->title_label, lv_color_white(), 0);
         lv_obj_align(page->title_label, LV_ALIGN_TOP_LEFT, 2, 0);
     }
@@ -186,7 +186,7 @@ dropdown_menu_page_t * dropdown_menu_page_create(void)
     page->item_label = lv_label_create(page->panel);
     if(page->item_label != NULL) {
         lv_label_set_text(page->item_label, "s");
-        lv_obj_set_style_text_font(page->item_label, &my_font_source_han_20, 0);
+        lv_obj_set_style_text_font(page->item_label, &my_font_source_han_24, 0);
         lv_obj_set_style_text_color(page->item_label, lv_color_white(), 0);
         lv_obj_align(page->item_label, LV_ALIGN_TOP_LEFT, 0, 0);
     }
@@ -194,7 +194,7 @@ dropdown_menu_page_t * dropdown_menu_page_create(void)
     page->state_label = lv_label_create(page->panel);
     if(page->state_label != NULL) {
         lv_label_set_text(page->state_label, "--");
-        lv_obj_set_style_text_font(page->state_label, &my_font_source_han_20, 0);
+        lv_obj_set_style_text_font(page->state_label, &my_font_source_han_24, 0);
         lv_obj_align(page->state_label, LV_ALIGN_BOTTOM_LEFT, 0, 0);
     }
 

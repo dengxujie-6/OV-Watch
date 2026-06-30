@@ -439,11 +439,6 @@
               <FilePath>..\BSP\AHT21\bsp_aht21.c</FilePath>
             </File>
             <File>
-              <FileName>bsp_lsm303dlhc.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\BSP\LSM303DLHC\bsp_lsm303dlhc.c</FilePath>
-            </File>
-            <File>
               <FileName>bsp_mpu6050.c</FileName>
               <FileType>1</FileType>
               <FilePath>..\BSP\MPU6050\bsp_mpu6050.c</FilePath>
@@ -1532,6 +1527,11 @@
               <FilePath>../USER/Service/HeartRate/ppg_signal_processor.c</FilePath>
             </File>
             <File>
+              <FileName>heart_rate_algo.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>../USER/Service/HeartRate/heart_rate_algo.c</FilePath>
+            </File>
+            <File>
               <FileName>ppg_uart_stream.c</FileName>
               <FileType>1</FileType>
               <FilePath>../USER/Task/HeartRate_Task/ppg_uart_stream.c</FilePath>
@@ -1547,9 +1547,9 @@
               <FilePath>../USER/PageManagement/page_manager.c</FilePath>
             </File>
             <File>
-              <FileName>my_font_source_han_20.c</FileName>
+              <FileName>my_font_source_han_24.c</FileName>
               <FileType>1</FileType>
-              <FilePath>../USER/FONTS/my_font_source_han_20.c</FilePath>
+              <FilePath>../USER/FONTS/my_font_source_han_24.c</FilePath>
             </File>
             <File>
               <FileName>my_font_source_han_10.c</FileName>
@@ -1580,16 +1580,6 @@
               <FileName>my_icon_fonts.c</FileName>
               <FileType>1</FileType>
               <FilePath>../USER/FONTS/my_icon_fonts.c</FilePath>
-            </File>
-            <File>
-              <FileName>img_compass_needle.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../USER/Pictures/img_compass_needle.c</FilePath>
-            </File>
-            <File>
-              <FileName>ui_img_compass_needle_png.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../USER/Pictures/ui_img_compass_needle_png.c</FilePath>
             </File>
             <File>
               <FileName>home_page.c</FileName>
@@ -1625,11 +1615,6 @@
               <FileName>animation_page.c</FileName>
               <FileType>1</FileType>
               <FilePath>../USER/GUI_page/Tools/animation_page.c</FilePath>
-            </File>
-            <File>
-              <FileName>compass_page.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../USER/GUI_page/Tools/compass_page.c</FilePath>
             </File>
             <File>
               <FileName>heart_rate_page.c</FileName>

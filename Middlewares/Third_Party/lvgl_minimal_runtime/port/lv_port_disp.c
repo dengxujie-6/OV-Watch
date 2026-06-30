@@ -5,12 +5,11 @@
 #include "hwaccess.h"
 #include "st7789v.h"
 
-#define LV_PORT_DISP_BUFFER_LINES    (LCD_HEIGHT / 10U)
+#define LV_PORT_DISP_BUFFER_LINES    (LCD_HEIGHT / 16U)
 #define LV_PORT_DISP_Y_OFFSET        20U
 #define LV_PORT_DISP_DMA_TIMEOUT_MS  100U
 
 static uint8_t disp_buf_1[LCD_WIDTH * LV_PORT_DISP_BUFFER_LINES * 2U];
-static uint8_t disp_buf_2[LCD_WIDTH * LV_PORT_DISP_BUFFER_LINES * 2U];
 
 static StaticSemaphore_t dma_ready_sem_buffer;
 static SemaphoreHandle_t dma_ready_sem;
@@ -50,9 +49,10 @@ void lv_port_disp_init(void)
     disp = lv_display_create(LCD_WIDTH, LCD_HEIGHT);
 
     lv_display_set_color_format(disp, LV_COLOR_FORMAT_RGB565_SWAPPED);
+    // 使用单个局部刷新缓冲，优先换取 SRAM 余量；代价是高频刷新时吞吐略低。
     lv_display_set_buffers(disp,
                            disp_buf_1,
-                           disp_buf_2,
+                           NULL,
                            sizeof(disp_buf_1),
                            LV_DISPLAY_RENDER_MODE_PARTIAL);
     lv_display_set_flush_cb(disp, disp_flush_cb);

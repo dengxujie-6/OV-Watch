@@ -11,6 +11,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(TARGET_NAME test)
 set(LINKER_SCRIPT "${CMAKE_SOURCE_DIR}/cmake/stm32f411xe.ld")
 set(GCC_STARTUP_FILE "${CMAKE_SOURCE_DIR}/Drivers/CMSIS/Device/ST/STM32F4xx/Source/Templates/gcc/startup_stm32f411xe.s")
+set(GCC_RUNTIME_STUBS_FILE "${CMAKE_SOURCE_DIR}/cmake/gcc_runtime_stubs.c")
 set(FREERTOS_GCC_PORT_DIR "${CMAKE_SOURCE_DIR}/Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F")
 set(FREERTOS_GCC_PORT_FILE "${FREERTOS_GCC_PORT_DIR}/port.c")
 
@@ -109,6 +110,7 @@ set(PROJECT_SOURCES
     ${USER_SOURCES}
     ${FREERTOS_SOURCES}
     ${LVGL_SOURCES}
+    "${GCC_RUNTIME_STUBS_FILE}"
     "${GCC_STARTUP_FILE}"
 )
 

@@ -260,6 +260,20 @@ int PpgUartStream_PushText(PpgUartStream_t *stream,
                                    1U);
 }
 
+int PpgUartStream_PushMetaText(PpgUartStream_t *stream,
+                               const char *text,
+                               uint16_t length)
+{
+    if((stream == NULL) || (text == NULL) || (length == 0U)) {
+        return -1;
+    }
+
+    return PpgUartStream_PushBytes(stream,
+                                   (const uint8_t *)text,
+                                   length,
+                                   0U);
+}
+
 void PpgUartStream_RequestFlush(PpgUartStream_t *stream)
 {
     if(stream == NULL) {

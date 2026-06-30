@@ -203,6 +203,19 @@ int PpgUartStream_PushText(PpgUartStream_t *stream,
                            uint16_t length);
 
 /**
+ * @brief 追加一段调试文本到 UART DMA 双缓冲，但不计入样本统计。
+ *
+ * @param stream 串流对象，不允许为 NULL。
+ * @param text 文本缓冲区，不允许为 NULL。
+ * @param length 文本长度，单位字节。
+ *
+ * @return 0 表示成功写入；负值表示缓冲不可写。
+ */
+int PpgUartStream_PushMetaText(PpgUartStream_t *stream,
+                               const char *text,
+                               uint16_t length);
+
+/**
  * @brief 请求把当前未满缓冲也刷新发送。
  *
  * @param stream 串流对象，不允许为 NULL。

@@ -44,7 +44,8 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define WATCHDOG_TASK_ENABLE 0U
-#define HEART_RATE_UART_TX_TASK_ENABLE 0U
+#define HEART_RATE_UART_TX_TASK_ENABLE 1U
+#define PRINT_TASK_ENABLE 0U
 
 /* USER CODE END PD */
 
@@ -194,7 +195,12 @@ void MX_FREERTOS_Init(void) {
   powerTaskHandle = osThreadNew(Power_Task, NULL, &powerTask_attributes);
 
   /* creation of printTask */
+#if (PRINT_TASK_ENABLE != 0U)
   printTaskHandle = osThreadNew(Print_Task, NULL, &printTask_attributes);
+#else
+  // USART1 现阶段专供心率原始 PPG 串流使用，先关闭历史调试打印任务。
+  printTaskHandle = NULL;
+#endif
 
   /* creation of heartRateTask */
   heartRateTaskHandle = osThreadNew(HeartRate_Task, NULL, &heartRateTask_attributes);
@@ -220,7 +226,9 @@ void MX_FREERTOS_Init(void) {
   (void)FreeRTOS_Debug_RegisterTask((TaskHandle_t)keyTaskHandle, keyTask_attributes.name);
   (void)FreeRTOS_Debug_RegisterTask((TaskHandle_t)sensorTaskHandle, sensorTask_attributes.name);
   (void)FreeRTOS_Debug_RegisterTask((TaskHandle_t)powerTaskHandle, powerTask_attributes.name);
+#if (PRINT_TASK_ENABLE != 0U)
   (void)FreeRTOS_Debug_RegisterTask((TaskHandle_t)printTaskHandle, printTask_attributes.name);
+#endif
   (void)FreeRTOS_Debug_RegisterTask((TaskHandle_t)heartRateTaskHandle, heartRateTask_attributes.name);
 #if (HEART_RATE_UART_TX_TASK_ENABLE != 0U)
   (void)FreeRTOS_Debug_RegisterTask((TaskHandle_t)heartRateTxTaskHandle, heartRateTxTask_attributes.name);

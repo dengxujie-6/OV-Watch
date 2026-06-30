@@ -17,6 +17,22 @@ typedef enum {
     HWACCESS_KEY_SCREEN,
 } HwAccess_KeyId_t;
 
+/**
+ * @brief 更新 EM7028 原始 PPG 缓存。
+ *
+ * @param raw_ppg 当前原始 PPG。
+ * @param raw_valid 1 表示本次原始值有效，0 表示无效。
+ */
+void HwAccess_Em7028_UpdateRawCache(uint16_t raw_ppg, uint8_t raw_valid);
+
+/**
+ * @brief 更新 EM7028 心率结果缓存。
+ *
+ * @param bpm 当前对外显示的 BPM。
+ * @param hr_valid 1 表示 BPM 有效，0 表示当前仍处于测量或无效状态。
+ */
+void HwAccess_Em7028_UpdateHeartRateCache(uint8_t bpm, uint8_t hr_valid);
+
 typedef void (*HwAccess_IsrHook_t)(void * context);
 
 /**

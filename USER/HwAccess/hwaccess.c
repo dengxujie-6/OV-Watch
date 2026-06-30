@@ -6,7 +6,6 @@
 #include "bsp_ext_watchdog.h"
 #include "bsp_bluetooth.h"
 #include "bsp_key.h"
-#include "bsp_lsm303dlhc.h"
 #include "bsp_mpu6050.h"
 #include "bsp_power.h"
 #include "bsp_prom.h"
@@ -20,7 +19,6 @@
 #define HWACCESS_STEP_HIGH_DELTA_MG2 350000UL
 #define HWACCESS_STEP_LOW_DELTA_MG2 120000UL
 #define HWACCESS_STEP_REFRACTORY_SAMPLES 1U
-
 static void HwAccess_Lcd_Init(void);
 static uint8_t HwAccess_Key_IsPressed(HwAccess_KeyId_t key);
 static void HwAccess_Power_UpdateBatteryCache(void);
@@ -31,10 +29,6 @@ static int HwAccess_Aht21_UpdateCache(void);
 static int16_t HwAccess_Aht21_GetTemperatureX10C(void);
 static uint16_t HwAccess_Aht21_GetHumidityX10Percent(void);
 static uint8_t HwAccess_Aht21_IsValid(void);
-static int HwAccess_Lsm303dlhc_UpdateCache(void);
-static int HwAccess_Lsm303dlhc_GetAccelMg(HwAccess_Vector3i16_t * value);
-static int HwAccess_Lsm303dlhc_GetMagMgauss(HwAccess_Vector3i16_t * value);
-static uint8_t HwAccess_Lsm303dlhc_IsValid(void);
 static int HwAccess_Mpu6050_UpdateCache(void);
 static int HwAccess_Mpu6050_GetAccelMg(HwAccess_Vector3i16_t * value);
 static int HwAccess_Mpu6050_GetGyroX10Dps(HwAccess_Vector3i16_t * value);
@@ -58,7 +52,6 @@ static uint8_t HwAccess_Em7028_GetBpm(void);
 static uint8_t HwAccess_Em7028_IsValid(void);
 static uint8_t HwAccess_Em7028_IsRunning(void);
 static void HwAccess_Em7028_ResetState(void);
-static void HwAccess_Em7028_ProcessRawSample(uint16_t raw_value);
 
 static volatile uint16_t hwaccess_battery_voltage_mv;
 static volatile uint8_t hwaccess_battery_percent;
@@ -66,13 +59,6 @@ static volatile uint8_t hwaccess_battery_valid;
 static volatile int16_t hwaccess_aht21_temperature_x10_c;
 static volatile uint16_t hwaccess_aht21_humidity_x10_percent;
 static volatile uint8_t hwaccess_aht21_valid;
-static volatile int16_t hwaccess_lsm303_accel_mg_x;
-static volatile int16_t hwaccess_lsm303_accel_mg_y;
-static volatile int16_t hwaccess_lsm303_accel_mg_z;
-static volatile int16_t hwaccess_lsm303_mag_mgauss_x;
-static volatile int16_t hwaccess_lsm303_mag_mgauss_y;
-static volatile int16_t hwaccess_lsm303_mag_mgauss_z;
-static volatile uint8_t hwaccess_lsm303_valid;
 static volatile int16_t hwaccess_mpu6050_accel_mg_x;
 static volatile int16_t hwaccess_mpu6050_accel_mg_y;
 static volatile int16_t hwaccess_mpu6050_accel_mg_z;
@@ -90,12 +76,6 @@ static volatile uint16_t hwaccess_em7028_raw;
 static volatile uint8_t hwaccess_em7028_bpm;
 static volatile uint8_t hwaccess_em7028_valid;
 static volatile uint8_t hwaccess_em7028_running;
-static uint32_t hwaccess_em7028_sample_count;
-static int32_t hwaccess_em7028_dc_estimate;
-static int32_t hwaccess_em7028_amp_estimate;
-static int32_t hwaccess_em7028_prev_filtered;
-static uint32_t hwaccess_em7028_last_beat_tick;
-static uint8_t hwaccess_em7028_have_last_beat;
 
 /**
  * @brief 初始化屏幕相关硬件。
@@ -242,73 +222,18 @@ static uint8_t HwAccess_Aht21_IsValid(void)
  *
  * 该函数运行在 Sensor_Task 上下文，允许通过软件 I2C 阻塞读取；UI 和业务层只读取缓存。
  */
-static int HwAccess_Lsm303dlhc_UpdateCache(void)
-{
-    BSP_LSM303DLHC_Data_t data;
-    int ret = BSP_LSM303DLHC_Read(&data);
-
-    if(ret != 0) {
-        return ret;
-    }
-
-    hwaccess_lsm303_accel_mg_x = data.accel_mg.x;
-    hwaccess_lsm303_accel_mg_y = data.accel_mg.y;
-    hwaccess_lsm303_accel_mg_z = data.accel_mg.z;
-    hwaccess_lsm303_mag_mgauss_x = data.mag_mgauss.x;
-    hwaccess_lsm303_mag_mgauss_y = data.mag_mgauss.y;
-    hwaccess_lsm303_mag_mgauss_z = data.mag_mgauss.z;
-    hwaccess_lsm303_valid = 1U;
-
-    return 0;
-}
 
 /**
  * @brief 读取缓存加速度，单位 mg。
  */
-static int HwAccess_Lsm303dlhc_GetAccelMg(HwAccess_Vector3i16_t * value)
-{
-    if(value == NULL) {
-        return -1;
-    }
-
-    if(hwaccess_lsm303_valid == 0U) {
-        return -2;
-    }
-
-    value->x = hwaccess_lsm303_accel_mg_x;
-    value->y = hwaccess_lsm303_accel_mg_y;
-    value->z = hwaccess_lsm303_accel_mg_z;
-
-    return 0;
-}
 
 /**
  * @brief 读取缓存磁场，单位毫高斯。
  */
-static int HwAccess_Lsm303dlhc_GetMagMgauss(HwAccess_Vector3i16_t * value)
-{
-    if(value == NULL) {
-        return -1;
-    }
-
-    if(hwaccess_lsm303_valid == 0U) {
-        return -2;
-    }
-
-    value->x = hwaccess_lsm303_mag_mgauss_x;
-    value->y = hwaccess_lsm303_mag_mgauss_y;
-    value->z = hwaccess_lsm303_mag_mgauss_z;
-
-    return 0;
-}
 
 /**
  * @brief 查询 LSM303DLHC 缓存是否已有有效采样。
  */
-static uint8_t HwAccess_Lsm303dlhc_IsValid(void)
-{
-    return hwaccess_lsm303_valid;
-}
 
 /**
  * @brief 采样一次 MPU6050 并刷新六轴与温度缓存。
@@ -526,8 +451,8 @@ static int HwAccess_Em7028_ReadRaw(uint16_t * value)
     }
 
     hwaccess_em7028_raw = raw_value;
+    hwaccess_em7028_valid = 1U;
     *value = raw_value;
-    HwAccess_Em7028_ProcessRawSample(raw_value);
     return 0;
 }
 
@@ -596,7 +521,7 @@ static uint16_t HwAccess_Em7028_GetRaw(void)
  */
 static uint8_t HwAccess_Em7028_GetBpm(void)
 {
-    return 0U;
+    return hwaccess_em7028_bpm;
 }
 
 /**
@@ -623,12 +548,6 @@ static void HwAccess_Em7028_ResetState(void)
     hwaccess_em7028_raw = 0U;
     hwaccess_em7028_bpm = 0U;
     hwaccess_em7028_valid = 0U;
-    hwaccess_em7028_sample_count = 0UL;
-    hwaccess_em7028_dc_estimate = 0;
-    hwaccess_em7028_amp_estimate = 0;
-    hwaccess_em7028_prev_filtered = 0;
-    hwaccess_em7028_last_beat_tick = 0UL;
-    hwaccess_em7028_have_last_beat = 0U;
 }
 
 /**
@@ -637,12 +556,20 @@ static void HwAccess_Em7028_ResetState(void)
  * 当前版本只负责保留 EM7028 的原始 ADC/PPG 值，
  * 不做峰值检测、滤波或 BPM 解算。
  */
-static void HwAccess_Em7028_ProcessRawSample(uint16_t raw_value)
+void HwAccess_Em7028_UpdateRawCache(uint16_t raw_ppg, uint8_t raw_valid)
 {
-    (void)raw_value;
+    hwaccess_em7028_raw = raw_ppg;
+    hwaccess_em7028_valid = raw_valid;
+}
 
-    hwaccess_em7028_sample_count++;
-    hwaccess_em7028_valid = 1U;
+/**
+ * @brief 记录一次有效 RR 间期，并更新平滑后的 BPM。
+ *
+ * 这里用固定长度环形缓冲保存最近几次心跳间隔，避免单个峰值误差让 BPM 大幅抖动。
+ */
+void HwAccess_Em7028_UpdateHeartRateCache(uint8_t bpm, uint8_t hr_valid)
+{
+    hwaccess_em7028_bpm = (hr_valid != 0U) ? bpm : 0U;
 }
 
 obj_HwAccess HwAccess = {
@@ -701,14 +628,7 @@ obj_HwAccess HwAccess = {
         .get_humidity_x10_percent = HwAccess_Aht21_GetHumidityX10Percent,
         .is_valid = HwAccess_Aht21_IsValid,
     },
-    .lsm303dlhc = {
-        .init = BSP_LSM303DLHC_Init,
-        .probe = BSP_LSM303DLHC_Probe,
-        .update_cache = HwAccess_Lsm303dlhc_UpdateCache,
-        .get_accel_mg = HwAccess_Lsm303dlhc_GetAccelMg,
-        .get_mag_mgauss = HwAccess_Lsm303dlhc_GetMagMgauss,
-        .is_valid = HwAccess_Lsm303dlhc_IsValid,
-    },
+    .lsm303dlhc = { 0 },
     .mpu6050 = {
         .init = BSP_MPU6050_Init,
         .probe = BSP_MPU6050_Probe,

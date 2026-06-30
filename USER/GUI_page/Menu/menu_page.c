@@ -12,7 +12,6 @@
 #include "animation_page.h"
 #include "calendar_page.h"
 #include "calculator_page.h"
-#include "compass_page.h"
 #include "heart_rate_page.h"
 #include "LVGL_Task.h"
 #include "stopwatch_page.h"
@@ -33,9 +32,9 @@ struct menu_page {
     int32_t last_scroll_y;         /**< 进入子页面前记录的列表滚动位置。 */
 };
 
-extern const lv_font_t my_font_source_han_20;
+extern const lv_font_t my_font_source_han_24;
 
-#define MENU_ITEM_COUNT 14
+#define MENU_ITEM_COUNT 13
 
 typedef struct {
     const char * title;
@@ -176,9 +175,6 @@ static void menu_item_event_cb(lv_event_t * e)
         else if(strcmp(title, "动画") == 0) {
             menu_page_request_push(&AnimationPage, NULL);
         }
-        else if(strcmp(title, "指南针") == 0) {
-            menu_page_request_push(&CompassPage, NULL);
-        }
         else if(strcmp(title, "心率") == 0) {
             menu_page_request_push(&HeartRatePage, NULL);
         }
@@ -240,7 +236,7 @@ static lv_obj_t * menu_item_create(lv_obj_t * parent, menu_page_t * owner,
     lv_obj_t * title = lv_label_create(btn);
     lv_label_set_text(title, desc->title);
     lv_obj_set_style_text_color(title, lv_color_white(), 0);
-    lv_obj_set_style_text_font(title, &my_font_source_han_20, 0);
+    lv_obj_set_style_text_font(title, &my_font_source_han_24, 0);
     lv_obj_align(title, LV_ALIGN_LEFT_MID, 62, 0);
 
     if(ctx) {
@@ -311,7 +307,6 @@ menu_page_t * menu_page_create(void)
         { "心率", LV_SYMBOL_TINT, 0xff8787 },
         { "血氧", LV_SYMBOL_AUDIO, 0x74c0fc },
         { "环境", LV_SYMBOL_HOME, 0x63e6be },
-        { "指南针", LV_SYMBOL_DRIVE, 0x91a7ff },
         { "测试", LV_SYMBOL_EYE_OPEN, 0x66d9e8 },
         { "游戏", LV_SYMBOL_PLAY, 0xffc078 },
         { "设置", LV_SYMBOL_SETTINGS, 0xadb5bd },

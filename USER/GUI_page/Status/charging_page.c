@@ -12,7 +12,7 @@
 
 #include <string.h>
 
-extern const lv_font_t my_font_source_han_20;
+extern const lv_font_t my_font_source_han_24;
 
 #define CHARGING_PAGE_REFRESH_MS 1000U
 #define CHARGING_RING_SIZE       198
@@ -146,7 +146,7 @@ charging_page_t * charging_page_create(void)
     lv_label_set_long_mode(page->percent_label, LV_LABEL_LONG_CLIP);
     lv_obj_set_style_text_color(page->percent_label, lv_color_white(), 0);
     // 使用自定义 24px 字体缩放到约 48px，减少 Flash 中的大字体资源。
-    lv_obj_set_style_text_font(page->percent_label, &my_font_source_han_20, 0);
+    lv_obj_set_style_text_font(page->percent_label, &my_font_source_han_24, 0);
     lv_obj_set_style_text_align(page->percent_label, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_transform_zoom(page->percent_label, 512, 0);
     // 固定百分比 label 的缩放中心，避免 0%/100% 宽度变化导致视觉偏移。
@@ -157,7 +157,7 @@ charging_page_t * charging_page_create(void)
     page->status_label = lv_label_create(page->root);
     lv_label_set_text(page->status_label, "正在充电");
     lv_obj_set_style_text_color(page->status_label, lv_color_hex(0x2cff78), 0);
-    lv_obj_set_style_text_font(page->status_label, &my_font_source_han_20, 0);
+    lv_obj_set_style_text_font(page->status_label, &my_font_source_han_24, 0);
     lv_obj_align(page->status_label, LV_ALIGN_CENTER, 0, 54);
 
     page->time_label = lv_label_create(page->root);

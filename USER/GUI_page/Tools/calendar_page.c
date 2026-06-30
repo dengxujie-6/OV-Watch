@@ -10,7 +10,7 @@
 
 #include <string.h>
 
-extern const lv_font_t my_font_source_han_20;
+extern const lv_font_t my_font_source_han_24;
 
 /**
  * @brief 日历页面对象。
@@ -78,7 +78,7 @@ calendar_page_t * calendar_page_create(void)
 
     page_ptr->title_label = lv_label_create(page_ptr->root);
     lv_label_set_text(page_ptr->title_label, "日历");
-    lv_obj_set_style_text_font(page_ptr->title_label, &my_font_source_han_20, 0);
+    lv_obj_set_style_text_font(page_ptr->title_label, &my_font_source_han_24, 0);
     lv_obj_set_style_text_color(page_ptr->title_label, lv_color_white(), 0);
     lv_obj_align(page_ptr->title_label, LV_ALIGN_TOP_LEFT, 2, 0);
 

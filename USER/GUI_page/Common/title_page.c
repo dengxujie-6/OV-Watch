@@ -9,7 +9,7 @@
 
 #include <string.h>
 
-extern const lv_font_t my_font_source_han_20;
+extern const lv_font_t my_font_source_han_24;
 
 /**
  * @brief 通用标题页面对象。
@@ -54,7 +54,7 @@ title_page_t * title_page_create(const char * title)
 
     page.title_label = lv_label_create(page.root);
     lv_label_set_text(page.title_label, title ? title : "");
-    lv_obj_set_style_text_font(page.title_label, &my_font_source_han_20, 0);
+    lv_obj_set_style_text_font(page.title_label, &my_font_source_han_24, 0);
     lv_obj_set_style_text_color(page.title_label, lv_color_white(), 0);
     lv_obj_center(page.title_label);
 

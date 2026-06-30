@@ -114,10 +114,6 @@ static void Sensor_Task_RefreshEnvironment(void)
         (void)HwAccess.aht21.update_cache();
     }
 
-    if(HwAccess.lsm303dlhc.update_cache != 0) {
-        (void)HwAccess.lsm303dlhc.update_cache();
-    }
-
     sensor_task_last_env_refresh_ms = osKernelGetTickCount();
 }
 
