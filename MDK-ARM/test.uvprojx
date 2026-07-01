@@ -1532,11 +1532,6 @@
               <FilePath>../USER/Service/HeartRate/heart_rate_algo.c</FilePath>
             </File>
             <File>
-              <FileName>ppg_uart_stream.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>../USER/Task/HeartRate_Task/ppg_uart_stream.c</FilePath>
-            </File>
-            <File>
               <FileName>Watchdog_Task.c</FileName>
               <FileType>1</FileType>
               <FilePath>../USER/Task/Watchdog_Task/Watchdog_Task.c</FilePath>

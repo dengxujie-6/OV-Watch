@@ -8,21 +8,12 @@ extern "C" {
 /**
  * @brief EM7028 原始 PPG 采样任务入口。
  *
- * 该任务仅在心率页面启动采样时执行固定 25ms 周期读取，并把测量原始值
- * 写入软件双缓冲，不直接执行串口发送。
+ * 该任务在心率页面启动采样后执行固定 25ms 周期读取，
+ * 完成前处理、心率算法计算和页面缓存更新。
  *
  * @param argument FreeRTOS 任务参数，当前未使用。
  */
 void HeartRate_Task(void *argument);
-
-/**
- * @brief 心率 UART DMA 发送任务入口。
- *
- * 该任务负责把采样任务写入的软件双缓冲通过蓝牙串口 DMA 低优先级发送出去。
- *
- * @param argument FreeRTOS 任务参数，当前未使用。
- */
-void HeartRate_UartTx_Task(void *argument);
 
 #ifdef __cplusplus
 }

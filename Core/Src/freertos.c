@@ -44,7 +44,6 @@
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define WATCHDOG_TASK_ENABLE 0U
-#define HEART_RATE_UART_TX_TASK_ENABLE 1U
 #define PRINT_TASK_ENABLE 0U
 
 /* USER CODE END PD */
@@ -86,14 +85,6 @@ const osThreadAttr_t heartRateTask_attributes = {
   .name = "heartRateTask",
   .stack_size = 256 * 4,
   .priority = (osPriority_t) osPriorityLow1,
-};
-
-/* Definitions for heartRateTxTask */
-osThreadId_t heartRateTxTaskHandle;
-const osThreadAttr_t heartRateTxTask_attributes = {
-  .name = "heartRateTxTask",
-  .stack_size = 256 * 4,
-  .priority = (osPriority_t) osPriorityLow,
 };
 
 /* Definitions for printTask */
@@ -198,19 +189,12 @@ void MX_FREERTOS_Init(void) {
 #if (PRINT_TASK_ENABLE != 0U)
   printTaskHandle = osThreadNew(Print_Task, NULL, &printTask_attributes);
 #else
-  // USART1 现阶段专供心率原始 PPG 串流使用，先关闭历史调试打印任务。
+  // 当前构建关闭历史调试打印任务，避免创建无用途的串口输出线程。
   printTaskHandle = NULL;
 #endif
 
   /* creation of heartRateTask */
   heartRateTaskHandle = osThreadNew(HeartRate_Task, NULL, &heartRateTask_attributes);
-
-  /* creation of heartRateTxTask */
-#if (HEART_RATE_UART_TX_TASK_ENABLE != 0U)
-  heartRateTxTaskHandle = osThreadNew(HeartRate_UartTx_Task, NULL, &heartRateTxTask_attributes);
-#else
-  heartRateTxTaskHandle = NULL;
-#endif
 
   /* creation of watchdogTask */
 #if (WATCHDOG_TASK_ENABLE != 0U)
@@ -230,9 +214,6 @@ void MX_FREERTOS_Init(void) {
   (void)FreeRTOS_Debug_RegisterTask((TaskHandle_t)printTaskHandle, printTask_attributes.name);
 #endif
   (void)FreeRTOS_Debug_RegisterTask((TaskHandle_t)heartRateTaskHandle, heartRateTask_attributes.name);
-#if (HEART_RATE_UART_TX_TASK_ENABLE != 0U)
-  (void)FreeRTOS_Debug_RegisterTask((TaskHandle_t)heartRateTxTaskHandle, heartRateTxTask_attributes.name);
-#endif
 #if (WATCHDOG_TASK_ENABLE != 0U)
   (void)FreeRTOS_Debug_RegisterTask((TaskHandle_t)watchdogTaskHandle, watchdogTask_attributes.name);
 #endif
