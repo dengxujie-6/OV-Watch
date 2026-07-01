@@ -61,11 +61,10 @@ typedef struct
 /**
  * @brief 心率算法状态对象。
  *
- * 数据流分为四段：
- * 1. 从前处理层接收 filtered_ppg 和样本有效性。
- * 2. 写入滑动窗口 filtered_signal[] / sample_valid_mask[]。
- * 3. 周期性做自相关分析，得到 candidate_bpm。
- * 4. 对 candidate_bpm 做稳定性与显示平滑，输出 display_bpm。
+ * 这个对象同时保存三类状态：
+ * 1. filtered_signal[] / sample_valid_mask[] 组成的整窗输入缓存；
+ * 2. 自相关分析过程中需要的时序统计、有效率和候选 BPM；
+ * 3. stable_bpm / display_bpm 这类面向最终显示的稳定化状态。
  */
 typedef struct
 {
@@ -120,7 +119,8 @@ void HeartRateAlgo_Reset(HeartRateAlgo_t * algo, HeartRateAlgoState_t next_state
  * @brief 向心率算法输入一个已经完成前处理的 PPG 样本。
  *
  * 算法的主输入是 sample->filtered_ppg。
- * 算法层不会重复计算 baseline_ppg、ac_ppg、filtered_ppg。
+ * 算法层不会重复计算 baseline_ppg、ac_ppg、filtered_ppg，
+ * 只负责判断该样本能否进入心率窗口，并在合适时机输出 candidate_bpm / display_bpm。
  *
  * @param algo 心率算法对象，不允许为 NULL。
  * @param sample 前处理后的 PPG 样本，不允许为 NULL。

@@ -99,14 +99,14 @@ typedef struct
 void PpgSignalProcessor_Init(PpgSignalProcessor_t * processor);
 
 /**
- * @brief 判断当前 raw_ppg 是否像毛刺，需要先重读一次再决定是否接受。
+ * @brief 判断当前 raw_ppg 是否像毛刺，需要先重读一次再决定是否接受。（判断粗大误差）
  *
  * 这里只做快速门控，不更新任何滤波状态。
  *
  * @param processor PPG 前处理器实例，不允许为 NULL。
  * @param raw_ppg 当前原始 PPG 值。
  *
- * @return 1 表示建议重读一次；0 表示可直接进入前处理。
+ * @return 1 是粗大误差；0 正常数据
  */
 uint8_t PpgSignalProcessor_IsGrossOutlier(const PpgSignalProcessor_t * processor,
                                           uint16_t raw_ppg);

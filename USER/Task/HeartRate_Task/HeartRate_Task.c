@@ -135,13 +135,14 @@ void HeartRate_Task(void *argument)
             continue;
         }
 
+        //  *如果判断 原始数据 raw_ppg 不是毛刺， 进入处理
         if(PpgSignalProcessor_IsGrossOutlier(&g_ppg_signal_processor, raw_ppg) == 0U) {
             PpgSignalProcessor_ProcessValidSample(&g_ppg_signal_processor,
                                                   sequence,
                                                   timestamp_ms,
                                                   raw_ppg,
                                                   flags,
-                                                  &processed_sample);
+                                                  &processed_sample);//  *这边对数据的判断，结果可能是无效的数据
             HeartRateAlgo_ProcessSample(&g_heart_rate_algo, &processed_sample);
             HeartRate_Task_UpdateCaches(&processed_sample);
             continue;
