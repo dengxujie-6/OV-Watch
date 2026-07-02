@@ -7,16 +7,25 @@
 #include "low_power.h"
 #include "task.h"
 
+//  软件定时器每 500ms 触发一次；空闲阶段和电源键长按计数都以这个拍点为基准。
 #define POWER_TASK_TIMER_PERIOD_MS            500U
+//  亮屏空闲 10s 后进入第一阶段，先把背光调暗。
 #define POWER_TASK_DIM_TIMEOUT_TICKS          20U
+//  调暗后继续空闲至 15s 时进入第二阶段，执行灭屏与背光关闭。
 #define POWER_TASK_DISPLAY_OFF_TIMEOUT_TICKS  30U
+//  灭屏后继续空闲至 20s 时进入第三阶段，执行 STOP 低功耗。
 #define POWER_TASK_STOP_TIMEOUT_TICKS         40U
+//  第一阶段背光亮度值，当前沿用项目已有 0~10 档位。
 #define POWER_TASK_DIM_BRIGHTNESS             5U
+//  用户活动恢复时使用的正常背光亮度。
 #define POWER_TASK_NORMAL_BRIGHTNESS          10U
-#define POWER_TASK_POLL_PERIOD_MS             100U
+//  电源键长按 4s 触发关机，避免误触直接断电。
 #define POWER_TASK_SHUTDOWN_HOLD_MS           4000U
-#define POWER_TASK_SHUTDOWN_HOLD_TICKS        (POWER_TASK_SHUTDOWN_HOLD_MS / POWER_TASK_POLL_PERIOD_MS)
-#define POWER_TASK_SHUTDOWN_ARM_RELEASE_TICKS 3U
+//  长按关机计数同样按 500ms 拍点累计，因此这里换算成拍数而不是毫秒。
+#define POWER_TASK_SHUTDOWN_HOLD_TICKS        (POWER_TASK_SHUTDOWN_HOLD_MS / POWER_TASK_TIMER_PERIOD_MS)
+//  开机或唤醒后，至少先观察到 1 个释放拍点才允许重新进入长按关机判定。
+#define POWER_TASK_SHUTDOWN_ARM_RELEASE_TICKS 1U
+//  STOP 被 MPU 中断唤醒后，抬腕判定窗口暂定为 500ms。
 #define POWER_TASK_RAISE_WINDOW_MS            500U
 
 typedef enum {
@@ -47,16 +56,17 @@ volatile uint32_t g_power_task_shutdown_tracking_active;
 volatile uint32_t g_power_task_shutdown_hold_ticks;
 volatile uint32_t g_power_task_shutdown_release_ticks;
 volatile uint32_t g_power_task_shutdown_raw_pressed;
+volatile uint32_t g_power_task_shutdown_path_stage;
 
 static void Power_Task_TimerCallback(void *argument);
 static void Power_Task_ResetIdleState(void);
-static uint8_t Power_Task_CheckShutdownRequest(void);
 static void Power_Task_RestoreActiveDisplay(void);
 static void Power_Task_ApplyDimState(void);
 static void Power_Task_ApplyDisplayOffState(void);
 static void Power_Task_HandleStopSequence(void);
 static void Power_Task_DisarmShutdownUntilRelease(void);
 static void Power_Task_UpdateDebugState(uint8_t raw_pressed);
+static void Power_Task_TimerUpdateShutdownState(uint32_t *set_flags);
 
 /**
  * @brief 创建 Power_Task 依赖的事件组和周期软件定时器。
@@ -80,7 +90,8 @@ void Power_Task(void *argument)
     const uint32_t wait_flags = POWER_TASK_EVENT_ACTIVITY |
                                 POWER_TASK_EVENT_LCD_DIM |
                                 POWER_TASK_EVENT_DISPLAY_OFF |
-                                POWER_TASK_EVENT_STOP;
+                                POWER_TASK_EVENT_STOP |
+                                POWER_TASK_EVENT_SHUTDOWN;
 
     (void)argument;
 
@@ -92,21 +103,28 @@ void Power_Task(void *argument)
         uint32_t flags = osEventFlagsWait(power_task_event_handle,
                                           wait_flags,
                                           osFlagsWaitAny,
-                                          POWER_TASK_POLL_PERIOD_MS);
+                                          osWaitForever);
 
-        if(Power_Task_CheckShutdownRequest() != 0U) {
-            if(HwAccess.power.close != NULL) {
-                HwAccess.power.close();
-            }
-
-            for(;;) {
-                (void)osDelay(1000U);
-            }
+        if((flags & osFlagsError) != 0UL) {
+            continue;  // ! 阻塞等待只处理真实事件位，错误返回值不能参与状态机判断
         }
 
         if((flags & POWER_TASK_EVENT_ACTIVITY) != 0UL) {
             Power_Task_RestoreActiveDisplay();
             continue;
+        }
+
+        if((flags & POWER_TASK_EVENT_SHUTDOWN) != 0UL) {
+            g_power_task_shutdown_path_stage = 2U;
+            if(HwAccess.power.close != NULL) {
+                g_power_task_shutdown_path_stage = 3U;
+                HwAccess.power.close();
+                g_power_task_shutdown_path_stage = 4U;
+            }
+
+            for(;;) {
+                (void)osDelay(1000U);
+            }
         }
 
         if((flags & POWER_TASK_EVENT_STOP) != 0UL) {
@@ -157,19 +175,19 @@ static void Power_Task_TimerCallback(void *argument)
 
     power_task_idle_ticks++;
 
-    if((power_task_display_state == POWER_TASK_DISPLAY_ACTIVE) &&
-       (power_task_idle_ticks >= POWER_TASK_DIM_TIMEOUT_TICKS)) {
+    if(power_task_idle_ticks == POWER_TASK_DIM_TIMEOUT_TICKS) {
         set_flags |= POWER_TASK_EVENT_LCD_DIM;
     }
 
-    if((power_task_display_state != POWER_TASK_DISPLAY_OFF) &&
-       (power_task_idle_ticks >= POWER_TASK_DISPLAY_OFF_TIMEOUT_TICKS)) {
+    if(power_task_idle_ticks == POWER_TASK_DISPLAY_OFF_TIMEOUT_TICKS) {
         set_flags |= POWER_TASK_EVENT_DISPLAY_OFF;
     }
 
-    if(power_task_idle_ticks >= POWER_TASK_STOP_TIMEOUT_TICKS) {
+    if(power_task_idle_ticks == POWER_TASK_STOP_TIMEOUT_TICKS) {
         set_flags |= POWER_TASK_EVENT_STOP;
     }
+
+    Power_Task_TimerUpdateShutdownState(&set_flags);
 
     taskEXIT_CRITICAL();
 
@@ -187,27 +205,34 @@ static void Power_Task_ResetIdleState(void)
 }
 
 /**
- * @brief 轮询电源键长按状态，满 4 秒返回关机请求。
+ * @brief 在定时器拍点中更新长按关机计数，并在达到阈值时置位关机事件。
  *
- * @return 1 表示应执行关机；0 表示继续运行。
+ * @param set_flags 定时器回调本轮准备投递的事件位集合，不能为空。
  */
-static uint8_t Power_Task_CheckShutdownRequest(void)
+static void Power_Task_TimerUpdateShutdownState(uint32_t *set_flags)
 {
     uint8_t power_pressed;
+
+    if(set_flags == NULL) {
+        return;
+    }
 
     if(HwAccess.key.is_pressed == NULL) {
         power_task_power_key_hold_ticks = 0UL;
         power_task_power_key_release_ticks = 0UL;
         power_task_power_key_shutdown_armed = 0U;
         power_task_power_key_tracking_active = 0U;
+        g_power_task_shutdown_path_stage = 10U;
         Power_Task_UpdateDebugState(0U);
-        return 0U;
+        return;
     }
 
+    g_power_task_shutdown_path_stage = 11U;
     power_pressed = HwAccess.key.is_pressed(HWACCESS_KEY_SCREEN);
     g_power_task_shutdown_raw_pressed = power_pressed;
 
     if(power_pressed == 0U) {
+        g_power_task_shutdown_path_stage = 12U;
         power_task_power_key_hold_ticks = 0UL;
         if((power_task_power_key_tracking_active != 0U) &&
            (power_task_power_key_release_ticks < POWER_TASK_SHUTDOWN_ARM_RELEASE_TICKS)) {
@@ -218,24 +243,29 @@ static uint8_t Power_Task_CheckShutdownRequest(void)
             power_task_power_key_shutdown_armed = 1U;
         }
         Power_Task_UpdateDebugState(power_pressed);
-        return 0U;
+        return;
     }
 
     power_task_power_key_release_ticks = 0UL;
 
     if((power_task_power_key_tracking_active == 0U) ||
        (power_task_power_key_shutdown_armed == 0U)) {
+        g_power_task_shutdown_path_stage = 13U;
         power_task_power_key_hold_ticks = 0UL;
         Power_Task_UpdateDebugState(power_pressed);
-        return 0U;
+        return;
     }
 
     if(power_task_power_key_hold_ticks < POWER_TASK_SHUTDOWN_HOLD_TICKS) {
+        g_power_task_shutdown_path_stage = 14U;
         power_task_power_key_hold_ticks++;
     }
 
     Power_Task_UpdateDebugState(power_pressed);
-    return (power_task_power_key_hold_ticks >= POWER_TASK_SHUTDOWN_HOLD_TICKS) ? 1U : 0U;
+    g_power_task_shutdown_path_stage = 15U;
+    if(power_task_power_key_hold_ticks >= POWER_TASK_SHUTDOWN_HOLD_TICKS) {
+        *set_flags |= POWER_TASK_EVENT_SHUTDOWN;
+    }
 }
 
 /**

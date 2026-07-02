@@ -7,10 +7,16 @@
 extern "C" {
 #endif
 
+//  任意用户活动都会置位该事件，用于恢复亮屏并清空低功耗空闲计数。
 #define POWER_TASK_EVENT_ACTIVITY      (1UL << 0)
+//  空闲达到第一阶段阈值后置位，只负责把背光调暗，不进入深度低功耗。
 #define POWER_TASK_EVENT_LCD_DIM       (1UL << 1)
+//  空闲达到第二阶段阈值后置位，用于执行灭屏和背光关闭。
 #define POWER_TASK_EVENT_DISPLAY_OFF   (1UL << 2)
+//  空闲达到第三阶段阈值后置位，用于执行 STOP 进入与唤醒判定。
 #define POWER_TASK_EVENT_STOP          (1UL << 3)
+//  电源键长按计数达到关机阈值后置位，用于执行整机关机保持脚拉低。
+#define POWER_TASK_EVENT_SHUTDOWN      (1UL << 4)
 
 /**
  * @brief 创建低功耗任务依赖的事件组和软件定时器对象。

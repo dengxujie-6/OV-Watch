@@ -30,8 +30,15 @@
 static ADC_HandleTypeDef power_adc_handle;
 static uint8_t power_adc_initialized;
 
+volatile uint32_t g_bsp_power_debug_open_count;
+volatile uint32_t g_bsp_power_debug_close_count;
+volatile uint32_t g_bsp_power_debug_last_action;
+volatile uint32_t g_bsp_power_debug_pa3_level;
+volatile uint32_t g_bsp_power_debug_pa3_odr;
+
 static void BSP_Power_GPIO_Init(void);
 static void BSP_Power_ADC_Init(void);
+static void BSP_Power_UpdateDebugState(uint32_t action_tag);
 
 /**
  * @brief 初始化 Power 模块 GPIO，并拉高 PA3 维持系统电源。
@@ -43,12 +50,16 @@ void BSP_Power_Open(void)
 
     // PA3 是电源保持脚，初始化完成后立即输出高电平，避免系统掉电。
     HAL_GPIO_WritePin(BSP_POWER_EN_GPIO_PORT, BSP_POWER_EN_GPIO_PIN, GPIO_PIN_SET);
+    g_bsp_power_debug_open_count++;
+    BSP_Power_UpdateDebugState(1U);
 }
 
 void BSP_Power_Close(void)
 {
     BSP_Power_GPIO_Init();
     HAL_GPIO_WritePin(BSP_POWER_EN_GPIO_PORT, BSP_POWER_EN_GPIO_PIN, GPIO_PIN_RESET);
+    g_bsp_power_debug_close_count++;
+    BSP_Power_UpdateDebugState(2U);
 }
 
 /**
@@ -131,6 +142,8 @@ static void BSP_Power_GPIO_Init(void)
     GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+    BSP_Power_UpdateDebugState(3U);
 }
 
 /**
@@ -172,4 +185,18 @@ static void BSP_Power_ADC_Init(void)
     }
 
     power_adc_initialized = 1U;
+}
+
+/**
+ * @brief 记录 PA3 保持脚当前软件可见状态，便于在调试器中观察。
+ *
+ * @param action_tag 最近一次动作标记：1=Open，2=Close，3=GPIO_Init。
+ */
+static void BSP_Power_UpdateDebugState(uint32_t action_tag)
+{
+    g_bsp_power_debug_last_action = action_tag;
+    g_bsp_power_debug_pa3_level =
+        (uint32_t)HAL_GPIO_ReadPin(BSP_POWER_EN_GPIO_PORT, BSP_POWER_EN_GPIO_PIN);
+    g_bsp_power_debug_pa3_odr =
+        ((BSP_POWER_EN_GPIO_PORT->ODR & BSP_POWER_EN_GPIO_PIN) != 0U) ? 1U : 0U;
 }

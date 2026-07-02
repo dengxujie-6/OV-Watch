@@ -6,10 +6,15 @@
 #include "lvgl.h"
 
 #include "CST816T.h"
+#include "lv_port_indev.h"
 #include "stm32f4xx_hal.h"
 
 static lv_indev_t * touch_indev;
 static lv_point_t last_touch_point;
+//  用于识别“新的按下边沿”，避免手指持续按住时反复产生 activity。
+static uint8_t touch_last_pressed;
+//  输入移植层只记录发生过一次新的触摸活动，由 GUI 任务在安全上下文中取走并转成低功耗 activity 事件。
+static volatile uint8_t touch_activity_pending;
 
 /**
  * @brief 触摸输入调试变量。
@@ -46,6 +51,19 @@ void lv_port_indev_init(void)
     lv_indev_set_read_cb(touch_indev, touch_read_cb);
 }
 
+/**
+ * @brief 取走一次新的触摸按下活动。
+ *
+ * @return 1 表示自上次读取后至少发生过一次新的触摸按下；0 表示没有新的触摸活动。
+ */
+uint8_t lv_port_indev_take_activity(void)
+{
+    uint8_t pending = touch_activity_pending;
+
+    touch_activity_pending = 0U;
+    return pending;
+}
+
 static void touch_read_cb(lv_indev_t * indev, lv_indev_data_t * data)
 {
     CST816T_TouchPoint_t point;
@@ -60,6 +78,11 @@ static void touch_read_cb(lv_indev_t * indev, lv_indev_data_t * data)
     g_lvgl_touch_last_error = touch_result;
 
     if((touch_result == 0) && (point.is_pressed != 0U)) {
+        if(touch_last_pressed == 0U) {
+            touch_activity_pending = 1U;  //  只在新的按下边沿上报一次，避免长按期间反复重置低功耗计时
+        }
+
+        touch_last_pressed = 1U;
         last_touch_point.x = (int32_t)point.x;
         last_touch_point.y = (int32_t)point.y;
         data->point = last_touch_point;
@@ -75,6 +98,8 @@ static void touch_read_cb(lv_indev_t * indev, lv_indev_data_t * data)
     if(touch_result != 0) {
         g_lvgl_touch_error_count++;
     }
+
+    touch_last_pressed = 0U;
 
     data->point = last_touch_point;
     data->state = LV_INDEV_STATE_RELEASED;

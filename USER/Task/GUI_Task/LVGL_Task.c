@@ -6,6 +6,7 @@
 #include "Key_task.h"
 #include "low_power.h"
 #include "Power_Task.h"
+#include "lv_port_indev.h"
 #include "lvgl.h"
 #include "main.h"
 #include "page_manager.h"
@@ -18,6 +19,7 @@
 static volatile uint32_t lvgl_task_heartbeat_tick;
 
 static void LVGL_Task_HandleKeyEvents(void);
+static void LVGL_Task_HandleTouchActivity(void);
 static void LVGL_Task_HandleWakeRefresh(void);
 static void LVGL_Task_UpdateMemMonitor(void);
 
@@ -43,7 +45,6 @@ volatile uint32_t g_lvgl_log_last_tick;
 char g_lvgl_log_text[96];
 
 void lv_port_disp_init(void);
-void lv_port_indev_init(void);
 
 void LVGL_Task_LogPrint(lv_log_level_t level, const char * txt)
 {
@@ -106,12 +107,15 @@ void LVGL_Task(void *argument)
         (void)lv_timer_handler();
 
         g_lvgl_task_phase = 13U;
-        LVGL_Task_UpdateMemMonitor();
+        LVGL_Task_HandleTouchActivity();
 
         g_lvgl_task_phase = 14U;
-        lvgl_task_heartbeat_tick = osKernelGetTickCount();
+        LVGL_Task_UpdateMemMonitor();
 
         g_lvgl_task_phase = 15U;
+        lvgl_task_heartbeat_tick = osKernelGetTickCount();
+
+        g_lvgl_task_phase = 16U;
         osDelay(LVGL_TASK_DELAY_MS);
     }
 }
@@ -144,6 +148,18 @@ static void LVGL_Task_HandleKeyEvents(void)
     if((key_events & KEY_TASK_EVENT_BACK) != 0UL) {
         (void)PageManager_Pop();
     }
+}
+
+/**
+ * @brief 在 LVGL 任务上下文中处理一次新的触摸活动。
+ */
+static void LVGL_Task_HandleTouchActivity(void)
+{
+    if(lv_port_indev_take_activity() == 0U) {
+        return;
+    }
+
+    Power_Task_NotifyActivity();
 }
 
 /**
