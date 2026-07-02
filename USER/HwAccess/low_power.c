@@ -1,16 +1,16 @@
 #include "low_power.h"
 
 #include "cmsis_os2.h"
-#include "dma.h"
-#include "gpio.h"
 #include "hwaccess.h"
 #include "main.h"
-#include "spi.h"
-#include "tim.h"
 
 #include "bsp_bluetooth.h"
 #include "bsp_iic.h"
 #include "bsp_mpu6050.h"
+#include "dma.h"
+#include "gpio.h"
+#include "spi.h"
+#include "tim.h"
 
 #define LOW_POWER_WAKE_KEY2_PIN          GPIO_PIN_4
 #define LOW_POWER_WAKE_KEY2_PORT         GPIOA
@@ -23,19 +23,26 @@ extern osThreadId_t lvglTaskHandle;
 extern osThreadId_t sensorTaskHandle;
 extern osThreadId_t watchdogTaskHandle;
 
+void SystemClock_Config(void);
+
 static volatile uint32_t low_power_wake_flags;
 static volatile uint32_t low_power_last_wake_flags;
 static volatile uint8_t low_power_sleeping;
 static volatile uint8_t low_power_need_wake_refresh;
+static uint8_t low_power_tasks_suspended;
 
 static void LowPower_ConfigWakeupPins(void);
-static void LowPower_PreparePeripherals(void);
-static void LowPower_ResumePeripherals(void);
+static void LowPower_ClearWakeupPending(void);
+static void LowPower_PreparePeripheralsForStopEntry(void);
+static void LowPower_PreparePeripheralsForStopReentry(void);
+static void LowPower_RestoreMinimalPeripherals(void);
+static void LowPower_RestoreFullPeripherals(void);
 static void LowPower_SuspendTasks(void);
 static void LowPower_ResumeTasks(void);
+static uint32_t LowPower_RunStopCycle(uint8_t first_entry);
 
 /**
- * @brief 在 EXTI 回调中记录唤醒源。
+ * @brief 在 EXTI 回调中记录低功耗唤醒源。
  *
  * @param gpio_pin 进入中断的 GPIO 引脚号。
  */
@@ -53,41 +60,37 @@ void LowPower_HandleWakeupIrq(uint16_t gpio_pin)
 }
 
 /**
- * @brief 收拢非唤醒外设并进入 Sleep。
+ * @brief 收敛非唤醒外设后进入 MCU STOP，并在唤醒后恢复最小运行环境。
  *
- * @return 本次唤醒源位图。
+ * @return 本次唤醒源位图，组合 LOW_POWER_WAKE_SOURCE_xxx。
  */
-uint32_t LowPower_EnterSleep(void)
+uint32_t LowPower_EnterStop(void)
 {
-    uint32_t wake_flags;
-
-    LowPower_ConfigWakeupPins();
-    LowPower_SuspendTasks();
-    LowPower_PreparePeripherals();
-
-    low_power_wake_flags = 0UL;
-    low_power_sleeping = 1U;
-
-    __HAL_GPIO_EXTI_CLEAR_IT(LOW_POWER_WAKE_KEY2_PIN);
-    __HAL_GPIO_EXTI_CLEAR_IT(LOW_POWER_WAKE_MPU_PIN);
-
-    HAL_SuspendTick();
-    HAL_PWR_EnterSLEEPMode(PWR_MAINREGULATOR_ON, PWR_SLEEPENTRY_WFI);
-    HAL_ResumeTick();
-
-    low_power_sleeping = 0U;
-    wake_flags = low_power_wake_flags;
-    low_power_wake_flags = 0UL;
-    low_power_last_wake_flags = wake_flags;
-
-    LowPower_ResumePeripherals();
-    LowPower_ResumeTasks();
-
-    return wake_flags;
+    return LowPower_RunStopCycle(1U);
 }
 
 /**
- * @brief 读取并清除最近一次唤醒源位图。
+ * @brief 在抬腕判定失败后再次进入 MCU STOP。
+ *
+ * @return 本次唤醒源位图，组合 LOW_POWER_WAKE_SOURCE_xxx。
+ */
+uint32_t LowPower_ReenterStop(void)
+{
+    return LowPower_RunStopCycle(0U);
+}
+
+/**
+ * @brief 在 STOP 唤醒判定通过后恢复完整外设并继续任务调度。
+ */
+void LowPower_ResumeAfterStop(void)
+{
+    LowPower_RestoreFullPeripherals();
+    LowPower_ResumeTasks();
+    low_power_tasks_suspended = 0U;
+}
+
+/**
+ * @brief 读取并清除最近一次 STOP 返回后的唤醒源位图。
  *
  * @return 组合 LOW_POWER_WAKE_SOURCE_xxx。
  */
@@ -99,6 +102,14 @@ uint32_t LowPower_ConsumeWakeFlags(void)
     return wake_flags;
 }
 
+/**
+ * @brief 请求 GUI 任务在下一轮循环中执行整屏刷新。
+ */
+void LowPower_RequestWakeRefresh(void)
+{
+    low_power_need_wake_refresh = 1U;
+}
+
 uint8_t LowPower_TakeWakeRefreshRequest(void)
 {
     uint8_t need_refresh = low_power_need_wake_refresh;
@@ -108,7 +119,7 @@ uint8_t LowPower_TakeWakeRefreshRequest(void)
 }
 
 /**
- * @brief 配置 PA4 和 PB12 为 Sleep 唤醒 EXTI 输入。
+ * @brief 配置 PA4 和 PB12 为 STOP 唤醒 EXTI 输入。
  */
 static void LowPower_ConfigWakeupPins(void)
 {
@@ -134,10 +145,107 @@ static void LowPower_ConfigWakeupPins(void)
 }
 
 /**
- * @brief 睡前暂停会访问显示和采样链路的任务。
- *
- * Sleep 现在由独立的 Power_Task 触发，因此这里需要额外挂起 LVGL 任务，
- * 避免 LCD 已经去初始化后 GUI 任务仍继续访问显示驱动。
+ * @brief 清理进入 STOP 前遗留的 EXTI/PWR 唤醒标志。
+ */
+static void LowPower_ClearWakeupPending(void)
+{
+    __HAL_GPIO_EXTI_CLEAR_IT(LOW_POWER_WAKE_KEY2_PIN);
+    __HAL_GPIO_EXTI_CLEAR_IT(LOW_POWER_WAKE_MPU_PIN);
+    __HAL_PWR_CLEAR_FLAG(PWR_FLAG_WU);
+}
+
+/**
+ * @brief 首次进入 STOP 前关闭显示、蓝牙与非唤醒外设。
+ */
+static void LowPower_PreparePeripheralsForStopEntry(void)
+{
+    (void)BSP_MPU6050_EnableWakeOnMotion();
+
+    if(HwAccess.watchdog.disable != NULL) {
+        HwAccess.watchdog.disable();
+    }
+
+    if(HwAccess.lcd.deinit != NULL) {
+        HwAccess.lcd.deinit();
+    }
+
+    BSP_BlueTooth_DeInit();
+
+    HAL_NVIC_DisableIRQ(SPI1_IRQn);
+    HAL_NVIC_DisableIRQ(DMA2_Stream2_IRQn);
+    (void)HAL_SPI_DeInit(&hspi1);
+    (void)HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_3);
+    (void)HAL_TIM_PWM_DeInit(&htim3);
+    __HAL_RCC_SPI1_CLK_DISABLE();
+    __HAL_RCC_TIM3_CLK_DISABLE();
+    __HAL_RCC_DMA2_CLK_DISABLE();
+
+    BSP_IIC_DeInit();
+
+    HAL_GPIO_DeInit(GPIOA, GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_5 | GPIO_PIN_11 | GPIO_PIN_12 | GPIO_PIN_15);
+    HAL_GPIO_DeInit(GPIOB, GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3 | GPIO_PIN_4 | GPIO_PIN_5 |
+                           GPIO_PIN_6 | GPIO_PIN_7 | GPIO_PIN_8 | GPIO_PIN_9 | GPIO_PIN_13 | GPIO_PIN_14);
+}
+
+/**
+ * @brief 抬腕判定失败后再次进入 STOP 前回收最小恢复链路。
+ */
+static void LowPower_PreparePeripheralsForStopReentry(void)
+{
+    BSP_IIC_DeInit();
+}
+
+/**
+ * @brief STOP 唤醒后只恢复按键、电源保持与 MPU 读取所需的最小外设。
+ */
+static void LowPower_RestoreMinimalPeripherals(void)
+{
+    if(HwAccess.power.open != NULL) {
+        HwAccess.power.open();
+    }
+
+    if(HwAccess.key.init != NULL) {
+        HwAccess.key.init();
+    }
+
+    BSP_IIC_Init();
+}
+
+/**
+ * @brief 抬腕判定通过后恢复完整外设链路。
+ */
+static void LowPower_RestoreFullPeripherals(void)
+{
+    MX_GPIO_Init();
+    MX_DMA_Init();
+    MX_SPI1_Init();
+    MX_TIM3_Init();
+
+    if(HwAccess.power.open != NULL) {
+        HwAccess.power.open();
+    }
+
+    if(HwAccess.key.init != NULL) {
+        HwAccess.key.init();
+    }
+
+    if(HwAccess.bluetooth.init != NULL) {
+        HwAccess.bluetooth.init();
+    }
+
+    if(HwAccess.lcd.init != NULL) {
+        HwAccess.lcd.init();
+    }
+
+    if(HwAccess.watchdog.enable != NULL) {
+        HwAccess.watchdog.enable();
+    }
+
+    LowPower_RequestWakeRefresh();
+}
+
+/**
+ * @brief 挂起会访问显示和采样链路的任务。
  */
 static void LowPower_SuspendTasks(void)
 {
@@ -159,7 +267,7 @@ static void LowPower_SuspendTasks(void)
 }
 
 /**
- * @brief 唤醒后恢复任务运行。
+ * @brief 完整唤醒后恢复被挂起的任务。
  */
 static void LowPower_ResumeTasks(void)
 {
@@ -181,47 +289,41 @@ static void LowPower_ResumeTasks(void)
 }
 
 /**
- * @brief 睡前关闭显示、蓝牙和非唤醒 GPIO，仅保留 POWER_EN 与唤醒引脚。
+ * @brief 执行一次 STOP 周期，并在唤醒后恢复最小运行环境。
+ *
+ * @param first_entry 1 表示从正常运行态首次进入 STOP；0 表示抬腕判定失败后的再次进入。
+ *
+ * @return 本次唤醒源位图。
  */
-static void LowPower_PreparePeripherals(void)
+static uint32_t LowPower_RunStopCycle(uint8_t first_entry)
 {
-    (void)BSP_MPU6050_EnableWakeOnMotion();
+    uint32_t wake_flags;
 
-    HwAccess.watchdog.disable();
-    HwAccess.lcd.deinit();
-    BSP_BlueTooth_DeInit();
+    LowPower_ConfigWakeupPins();
 
-    HAL_NVIC_DisableIRQ(SPI1_IRQn);
-    HAL_NVIC_DisableIRQ(DMA2_Stream2_IRQn);
-    (void)HAL_SPI_DeInit(&hspi1);
-    (void)HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_3);
-    (void)HAL_TIM_PWM_DeInit(&htim3);
-    __HAL_RCC_SPI1_CLK_DISABLE();
-    __HAL_RCC_TIM3_CLK_DISABLE();
-    __HAL_RCC_DMA2_CLK_DISABLE();
+    if((first_entry != 0U) || (low_power_tasks_suspended == 0U)) {
+        LowPower_SuspendTasks();
+        low_power_tasks_suspended = 1U;
+        LowPower_PreparePeripheralsForStopEntry();
+    } else {
+        LowPower_PreparePeripheralsForStopReentry();
+    }
 
-    BSP_IIC_DeInit();
+    low_power_wake_flags = 0UL;
+    low_power_sleeping = 1U;
+    LowPower_ClearWakeupPending();
 
-    HAL_GPIO_DeInit(GPIOA, GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_5 | GPIO_PIN_11 | GPIO_PIN_12 | GPIO_PIN_15);
-    HAL_GPIO_DeInit(GPIOB, GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3 | GPIO_PIN_4 | GPIO_PIN_5 |
-                           GPIO_PIN_6 | GPIO_PIN_7 | GPIO_PIN_8 | GPIO_PIN_9 | GPIO_PIN_13 | GPIO_PIN_14);
-}
+    HAL_SuspendTick();
+    HAL_PWR_EnterSTOPMode(PWR_LOWPOWERREGULATOR_ON, PWR_STOPENTRY_WFI);
+    SystemClock_Config();
+    HAL_ResumeTick();
 
-/**
- * @brief 唤醒后恢复常规 GPIO、显示、蓝牙和 MPU6050 采样配置。
- */
-static void LowPower_ResumePeripherals(void)
-{
-    MX_GPIO_Init();
-    MX_DMA_Init();
-    MX_SPI1_Init();
-    MX_TIM3_Init();
+    low_power_sleeping = 0U;
+    wake_flags = low_power_wake_flags;
+    low_power_wake_flags = 0UL;
+    low_power_last_wake_flags = wake_flags;
 
-    HwAccess.power.open();
-    HwAccess.key.init();
-    HwAccess.bluetooth.init();
-    HwAccess.lcd.init();
-    HwAccess.lcd.set_backlight(10U);
-    HwAccess.watchdog.enable();
-    low_power_need_wake_refresh = 1U;
+    LowPower_RestoreMinimalPeripherals();
+
+    return wake_flags;
 }

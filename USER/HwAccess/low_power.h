@@ -22,7 +22,9 @@ void LowPower_HandleWakeupIrq(uint16_t gpio_pin);
  *
  * @return 本次唤醒源位图，组合 LOW_POWER_WAKE_SOURCE_xxx。
  */
-uint32_t LowPower_EnterSleep(void);
+uint32_t LowPower_EnterStop(void);
+uint32_t LowPower_ReenterStop(void);
+void LowPower_ResumeAfterStop(void);
 
 /**
  * @brief 读取并清除最近一次 Sleep 返回后的唤醒源位图。
@@ -30,6 +32,7 @@ uint32_t LowPower_EnterSleep(void);
  * @return 组合 LOW_POWER_WAKE_SOURCE_xxx；0 表示没有新的唤醒结果。
  */
 uint32_t LowPower_ConsumeWakeFlags(void);
+void LowPower_RequestWakeRefresh(void);
 uint8_t LowPower_TakeWakeRefreshRequest(void);
 
 #ifdef __cplusplus

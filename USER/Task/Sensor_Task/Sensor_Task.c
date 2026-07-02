@@ -12,6 +12,11 @@
 #define SENSOR_TASK_MOTION_ACCEL_DELTA_MG         120
 #define SENSOR_TASK_MOTION_GYRO_X10_DPS           120
 #define SENSOR_TASK_FLAG_MPU_INT                  0x0001U
+#define SENSOR_TASK_RAISE_SAMPLE_PERIOD_MS        100U
+#define SENSOR_TASK_RAISE_CONFIRM_COUNT           2U
+#define SENSOR_TASK_RAISE_ACCEL_Y_DELTA_MG        220
+#define SENSOR_TASK_RAISE_ACCEL_Z_DELTA_MG        220
+#define SENSOR_TASK_RAISE_GYRO_X10_DPS            150
 
 typedef enum {
     SENSOR_TASK_MODE_LOW_RATE = 0,
@@ -22,23 +27,27 @@ static Sensor_TaskMode_t sensor_task_mode = SENSOR_TASK_MODE_LOW_RATE;
 static uint32_t sensor_task_last_env_refresh_ms;
 static uint32_t sensor_task_last_motion_ms;
 static uint8_t sensor_task_motion_baseline_valid;
+static HwAccess_Vector3i16_t sensor_task_current_accel_mg;
+static HwAccess_Vector3i16_t sensor_task_current_gyro_x10_dps;
 static HwAccess_Vector3i16_t sensor_task_last_accel_mg;
 static HwAccess_Vector3i16_t sensor_task_last_gyro_x10_dps;
 
 static void Sensor_Task_RefreshEnvironment(void);
-static void Sensor_Task_RefreshMpuSample(void);
+static uint8_t Sensor_Task_RefreshMpuSample(void);
 static void Sensor_Task_SwitchToDataReadyMode(void);
 static void Sensor_Task_SwitchToLowRateMode(void);
 static uint8_t Sensor_Task_IsMotionDetected(void);
 static int16_t Sensor_Task_AbsI16(int16_t value);
+static uint8_t Sensor_Task_IsRaiseSampleMatched(const HwAccess_Vector3i16_t * base_accel,
+                                                const HwAccess_Vector3i16_t * accel_mg,
+                                                const HwAccess_Vector3i16_t * gyro_x10_dps);
 
 extern osThreadId_t sensorTaskHandle;
 
 /**
  * @brief 周期刷新传感器缓存数据。
  *
- * 该任务运行在普通 FreeRTOS 任务上下文，可以调用阻塞式 HwAccess 采样接口；
- * UI/LVGL 任务只读取 HwAccess 缓存，避免页面刷新时直接访问 ADC。
+ * @param argument FreeRTOS 任务参数，当前未使用。
  */
 void Sensor_Task(void *argument)
 {
@@ -47,7 +56,7 @@ void Sensor_Task(void *argument)
     (void)argument;
 
     Sensor_Task_RefreshEnvironment();
-    Sensor_Task_RefreshMpuSample();
+    (void)Sensor_Task_RefreshMpuSample();
     sensor_task_last_motion_ms = osKernelGetTickCount();
 
     for(;;) {
@@ -55,7 +64,7 @@ void Sensor_Task(void *argument)
         if(wake_flags != 0UL) {
             Sensor_Task_SwitchToDataReadyMode();
             Sensor_Task_RefreshEnvironment();
-            Sensor_Task_RefreshMpuSample();
+            (void)Sensor_Task_RefreshMpuSample();
             sensor_task_last_motion_ms = osKernelGetTickCount();
         }
 
@@ -64,9 +73,10 @@ void Sensor_Task(void *argument)
                                                osFlagsWaitAny,
                                                SENSOR_TASK_DRDY_TIMEOUT_MS);
             if((flags & SENSOR_TASK_FLAG_MPU_INT) != 0U) {
-                Sensor_Task_RefreshMpuSample();
-                if(Sensor_Task_IsMotionDetected() != 0U) {
-                    sensor_task_last_motion_ms = osKernelGetTickCount();
+                if(Sensor_Task_RefreshMpuSample() != 0U) {
+                    if(Sensor_Task_IsMotionDetected() != 0U) {
+                        sensor_task_last_motion_ms = osKernelGetTickCount();
+                    }
                 }
             }
 
@@ -79,16 +89,81 @@ void Sensor_Task(void *argument)
             }
         } else {
             Sensor_Task_RefreshEnvironment();
-            Sensor_Task_RefreshMpuSample();
-
-            if(Sensor_Task_IsMotionDetected() != 0U) {
-                sensor_task_last_motion_ms = osKernelGetTickCount();
-                Sensor_Task_SwitchToDataReadyMode();
+            if(Sensor_Task_RefreshMpuSample() != 0U) {
+                if(Sensor_Task_IsMotionDetected() != 0U) {
+                    sensor_task_last_motion_ms = osKernelGetTickCount();
+                    Sensor_Task_SwitchToDataReadyMode();
+                }
             }
 
             osDelay(SENSOR_TASK_LOW_RATE_PERIOD_MS);
         }
     }
+}
+
+/**
+ * @brief 在 STOP 唤醒后执行一次抬腕判定。
+ *
+ * @param window_ms 抬腕观察窗口，单位毫秒。
+ *
+ * @return 1 表示抬腕成立；0 表示判定失败。
+ */
+uint8_t Sensor_Task_EvaluateRaiseWake(uint32_t window_ms)
+{
+    HwAccess_Vector3i16_t base_accel_mg;
+    HwAccess_Vector3i16_t accel_mg;
+    HwAccess_Vector3i16_t gyro_x10_dps;
+    uint32_t start_ms;
+    uint8_t matched_count = 0U;
+
+    Sensor_Task_SwitchToLowRateMode();
+
+    if(Sensor_Task_RefreshMpuSample() == 0U) {
+        return 0U;
+    }
+
+    if((HwAccess.mpu6050.get_accel_mg == NULL) ||
+       (HwAccess.mpu6050.get_gyro_x10_dps == NULL) ||
+       (HwAccess.mpu6050.get_accel_mg(&base_accel_mg) != 0)) {
+        return 0U;
+    }
+
+    start_ms = osKernelGetTickCount();
+    while((osKernelGetTickCount() - start_ms) < window_ms) {
+        osDelay(SENSOR_TASK_RAISE_SAMPLE_PERIOD_MS);
+
+        if(Sensor_Task_RefreshMpuSample() == 0U) {
+            continue;
+        }
+
+        if((HwAccess.mpu6050.get_accel_mg(&accel_mg) != 0) ||
+           (HwAccess.mpu6050.get_gyro_x10_dps(&gyro_x10_dps) != 0)) {
+            continue;
+        }
+
+        if(Sensor_Task_IsRaiseSampleMatched(&base_accel_mg, &accel_mg, &gyro_x10_dps) != 0U) {
+            matched_count++;
+            if(matched_count >= SENSOR_TASK_RAISE_CONFIRM_COUNT) {
+                Sensor_Task_SwitchToDataReadyMode();
+                (void)Sensor_Task_RefreshMpuSample();
+                sensor_task_last_motion_ms = osKernelGetTickCount();
+                return 1U;
+            }
+        }
+    }
+
+    Sensor_Task_SwitchToLowRateMode();
+    return 0U;
+}
+
+/**
+ * @brief 在明确接受一次唤醒后，强制恢复活动采样模式。
+ */
+void Sensor_Task_ForceActiveMode(void)
+{
+    Sensor_Task_SwitchToDataReadyMode();
+    (void)Sensor_Task_RefreshMpuSample();
+    sensor_task_last_motion_ms = osKernelGetTickCount();
 }
 
 /**
@@ -106,11 +181,11 @@ void Sensor_Task_NotifyMpuInterruptFromISR(void)
  */
 static void Sensor_Task_RefreshEnvironment(void)
 {
-    if(HwAccess.power.update_battery_cache != 0) {
+    if(HwAccess.power.update_battery_cache != NULL) {
         HwAccess.power.update_battery_cache();
     }
 
-    if(HwAccess.aht21.update_cache != 0) {
+    if(HwAccess.aht21.update_cache != NULL) {
         (void)HwAccess.aht21.update_cache();
     }
 
@@ -118,25 +193,29 @@ static void Sensor_Task_RefreshEnvironment(void)
 }
 
 /**
- * @brief 刷新 MPU6050 缓存，并把加速度/角速度保存为静止判定输入。
+ * @brief 刷新 MPU6050 缓存，并保存运动判定输入。
+ *
+ * @return 1 表示成功刷新出有效样本；0 表示读取失败。
  */
-static void Sensor_Task_RefreshMpuSample(void)
+static uint8_t Sensor_Task_RefreshMpuSample(void)
 {
     HwAccess_Vector3i16_t accel_mg;
     HwAccess_Vector3i16_t gyro_x10_dps;
 
-    if(HwAccess.mpu6050.update_cache != 0) {
+    if(HwAccess.mpu6050.update_cache != NULL) {
         (void)HwAccess.mpu6050.update_cache();
     }
 
-    if((HwAccess.mpu6050.get_accel_mg != NULL) &&
-       (HwAccess.mpu6050.get_gyro_x10_dps != NULL) &&
-       (HwAccess.mpu6050.get_accel_mg(&accel_mg) == 0) &&
-       (HwAccess.mpu6050.get_gyro_x10_dps(&gyro_x10_dps) == 0)) {
-        sensor_task_last_accel_mg = accel_mg;
-        sensor_task_last_gyro_x10_dps = gyro_x10_dps;
-        sensor_task_motion_baseline_valid = 1U;
+    if((HwAccess.mpu6050.get_accel_mg == NULL) ||
+       (HwAccess.mpu6050.get_gyro_x10_dps == NULL) ||
+       (HwAccess.mpu6050.get_accel_mg(&accel_mg) != 0) ||
+       (HwAccess.mpu6050.get_gyro_x10_dps(&gyro_x10_dps) != 0)) {
+        return 0U;
     }
+
+    sensor_task_current_accel_mg = accel_mg;
+    sensor_task_current_gyro_x10_dps = gyro_x10_dps;
+    return 1U;
 }
 
 /**
@@ -174,23 +253,16 @@ static void Sensor_Task_SwitchToLowRateMode(void)
  */
 static uint8_t Sensor_Task_IsMotionDetected(void)
 {
-    HwAccess_Vector3i16_t accel_mg;
-    HwAccess_Vector3i16_t gyro_x10_dps;
+    HwAccess_Vector3i16_t accel_mg = sensor_task_current_accel_mg;
+    HwAccess_Vector3i16_t gyro_x10_dps = sensor_task_current_gyro_x10_dps;
     int16_t accel_dx;
     int16_t accel_dy;
     int16_t accel_dz;
 
-    if((HwAccess.mpu6050.get_accel_mg == NULL) ||
-       (HwAccess.mpu6050.get_gyro_x10_dps == NULL) ||
-       (HwAccess.mpu6050.get_accel_mg(&accel_mg) != 0) ||
-       (HwAccess.mpu6050.get_gyro_x10_dps(&gyro_x10_dps) != 0)) {
-        return 0U;
-    }
-
     if(sensor_task_motion_baseline_valid == 0U) {
+        sensor_task_motion_baseline_valid = 1U;
         sensor_task_last_accel_mg = accel_mg;
         sensor_task_last_gyro_x10_dps = gyro_x10_dps;
-        sensor_task_motion_baseline_valid = 1U;
         return 0U;
     }
 
@@ -211,6 +283,37 @@ static uint8_t Sensor_Task_IsMotionDetected(void)
     }
 
     return 0U;
+}
+
+/**
+ * @brief 判断单个采样点是否满足抬腕阈值。
+ */
+static uint8_t Sensor_Task_IsRaiseSampleMatched(const HwAccess_Vector3i16_t * base_accel,
+                                                const HwAccess_Vector3i16_t * accel_mg,
+                                                const HwAccess_Vector3i16_t * gyro_x10_dps)
+{
+    int16_t delta_y;
+    int16_t delta_z;
+
+    if((base_accel == NULL) || (accel_mg == NULL) || (gyro_x10_dps == NULL)) {
+        return 0U;
+    }
+
+    delta_y = Sensor_Task_AbsI16((int16_t)(accel_mg->y - base_accel->y));
+    delta_z = Sensor_Task_AbsI16((int16_t)(accel_mg->z - base_accel->z));
+
+    if((delta_y < SENSOR_TASK_RAISE_ACCEL_Y_DELTA_MG) &&
+       (delta_z < SENSOR_TASK_RAISE_ACCEL_Z_DELTA_MG)) {
+        return 0U;
+    }
+
+    if((Sensor_Task_AbsI16(gyro_x10_dps->x) < SENSOR_TASK_RAISE_GYRO_X10_DPS) &&
+       (Sensor_Task_AbsI16(gyro_x10_dps->y) < SENSOR_TASK_RAISE_GYRO_X10_DPS) &&
+       (Sensor_Task_AbsI16(gyro_x10_dps->z) < SENSOR_TASK_RAISE_GYRO_X10_DPS)) {
+        return 0U;
+    }
+
+    return 1U;
 }
 
 /**

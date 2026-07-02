@@ -24,6 +24,20 @@ void Sensor_Task(void *argument);
  */
 void Sensor_Task_NotifyMpuInterruptFromISR(void);
 
+/**
+ * @brief 在 STOP 唤醒后执行一次抬腕判定。
+ *
+ * @param window_ms 抬腕观察窗口，单位毫秒。
+ *
+ * @return 1 表示抬腕成立，应恢复亮屏；0 表示判定失败，可继续进入 STOP。
+ */
+uint8_t Sensor_Task_EvaluateRaiseWake(uint32_t window_ms);
+
+/**
+ * @brief 在明确接受一次唤醒后，强制恢复活动采样模式。
+ */
+void Sensor_Task_ForceActiveMode(void);
+
 #ifdef __cplusplus
 }
 #endif

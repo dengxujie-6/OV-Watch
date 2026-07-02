@@ -137,6 +137,10 @@ static void LVGL_Task_HandleKeyEvents(void)
         Power_Task_NotifyActivity();
     }
 
+    if((key_events & KEY_TASK_EVENT_SCREEN) != 0UL) {
+        Power_Task_NotifyPowerKeyPressed();
+    }
+
     if((key_events & KEY_TASK_EVENT_BACK) != 0UL) {
         (void)PageManager_Pop();
     }
