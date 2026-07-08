@@ -26,8 +26,13 @@
 
 #define MPU6050_WHO_AM_I_VALUE      0x68U
 #define MPU6050_PWR_RESET           0x80U
+#define MPU6050_PWR_TEMP_DISABLE    0x08U
+#define MPU6050_PWR_CYCLE           0x20U
+#define MPU6050_PWR_CLK_INTERNAL    0x00U
 #define MPU6050_PWR_CLK_PLL_XGYRO   0x01U
 #define MPU6050_ALL_AXES_ENABLE     0x00U
+#define MPU6050_STBY_ALL_GYRO       0x07U
+#define MPU6050_LP_WAKE_CTRL_5HZ    0x40U
 #define MPU6050_DLPF_CFG_44HZ       0x03U
 #define MPU6050_SAMPLE_DIV_100HZ    9U
 #define MPU6050_GYRO_FS_250DPS      0x00U
@@ -46,6 +51,7 @@
 
 static uint8_t mpu6050_initialized;
 static uint8_t mpu6050_addr = BSP_MPU6050_ADDR_LOW_7BIT;
+static uint8_t mpu6050_low_power_cycle_enabled;
 
 static int BSP_MPU6050_DetectAddress(void);
 static int BSP_MPU6050_ReadWhoAmI(uint8_t addr, uint8_t * value);
@@ -106,6 +112,7 @@ int BSP_MPU6050_Init(void)
     }
 
     mpu6050_initialized = 1U;
+    mpu6050_low_power_cycle_enabled = 0U;
     return 0;
 }
 
@@ -191,14 +198,31 @@ int BSP_MPU6050_EnableWakeOnMotion(void)
         return -12;
     }
 
-    if(BSP_IIC_WriteReg(mpu6050_addr, MPU6050_REG_INT_ENABLE, MPU6050_MOTION_INT_ENABLE) != 0) {
+    // 低功耗运动唤醒阶段只保留加速度计周期采样，关闭陀螺仪以降低 STOP 前待机功耗。
+    if(BSP_IIC_WriteReg(mpu6050_addr,
+                        MPU6050_REG_PWR_MGMT_2,
+                        (uint8_t)(MPU6050_LP_WAKE_CTRL_5HZ | MPU6050_STBY_ALL_GYRO)) != 0) {
         return -13;
     }
 
-    if(BSP_IIC_ReadRegs(mpu6050_addr, MPU6050_REG_INT_STATUS, &int_status, 1U) != 0) {
+    // ! 进入 CYCLE 模式后，器件使用内部时钟按低频唤醒采样；此时不应再依赖陀螺仪输出。
+    if(BSP_IIC_WriteReg(mpu6050_addr,
+                        MPU6050_REG_PWR_MGMT_1,
+                        (uint8_t)(MPU6050_PWR_TEMP_DISABLE |
+                                  MPU6050_PWR_CYCLE |
+                                  MPU6050_PWR_CLK_INTERNAL)) != 0) {
         return -14;
     }
 
+    if(BSP_IIC_WriteReg(mpu6050_addr, MPU6050_REG_INT_ENABLE, MPU6050_MOTION_INT_ENABLE) != 0) {
+        return -15;
+    }
+
+    if(BSP_IIC_ReadRegs(mpu6050_addr, MPU6050_REG_INT_STATUS, &int_status, 1U) != 0) {
+        return -16;
+    }
+
+    mpu6050_low_power_cycle_enabled = 1U;
     return 0;
 }
 
@@ -220,6 +244,14 @@ int BSP_MPU6050_DisableWakeOnMotion(void)
 int BSP_MPU6050_EnableDataReadyInterrupt(void)
 {
     uint8_t int_status;
+    int ret;
+
+    if((mpu6050_initialized == 0U) || (mpu6050_low_power_cycle_enabled != 0U)) {
+        ret = BSP_MPU6050_Init();
+        if(ret != 0) {
+            return ret;
+        }
+    }
 
     if(BSP_IIC_WriteReg(mpu6050_addr, MPU6050_REG_INT_PIN_CFG, MPU6050_INT_CFG_ACTIVE_HIGH) != 0) {
         return -1;
@@ -233,6 +265,7 @@ int BSP_MPU6050_EnableDataReadyInterrupt(void)
         return -3;
     }
 
+    mpu6050_low_power_cycle_enabled = 0U;
     return 0;
 }
 
@@ -245,6 +278,7 @@ int BSP_MPU6050_DisableDataReadyInterrupt(void)
         return -1;
     }
 
+    mpu6050_low_power_cycle_enabled = 0U;
     return 0;
 }
 

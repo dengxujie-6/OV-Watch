@@ -116,7 +116,8 @@ uint8_t Sensor_Task_EvaluateRaiseWake(uint32_t window_ms)
     uint32_t start_ms;
     uint8_t matched_count = 0U;
 
-    Sensor_Task_SwitchToLowRateMode();
+    // ! 抬腕判定依赖角速度阈值，必须先恢复常规采样模式，避免低功耗唤醒阶段的陀螺仪待机影响结果。
+    Sensor_Task_SwitchToDataReadyMode();
 
     if(Sensor_Task_RefreshMpuSample() == 0U) {
         return 0U;
